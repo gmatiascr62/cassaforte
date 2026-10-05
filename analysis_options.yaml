@@ -1,0 +1,19 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+  language:
+    strict-casts: true
+    strict-raw-types: true
+
+linter:
+  rules:
+    prefer_final_locals: true
+    prefer_single_quotes: true
+    avoid_print: true
+    cancel_subscriptions: true
+    unawaited_futures: true
+    # Los parámetros con nombre públicos se asignan a campos privados.
+    prefer_initializing_formals: false
