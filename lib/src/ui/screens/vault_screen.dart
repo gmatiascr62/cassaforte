@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../model/vault_entry.dart';
 import '../app_scope.dart';
+import '../vault_actions.dart';
 import '../widgets/common.dart';
 import '../widgets/generator_sheet.dart';
 import 'entry_detail_screen.dart';
 import 'entry_form_screen.dart';
-import 'security_info_screen.dart';
+import 'settings_screen.dart';
 
 /// Lista de cuentas con búsqueda.
 class VaultScreen extends StatefulWidget {
@@ -19,6 +20,31 @@ class VaultScreen extends StatefulWidget {
 class _VaultScreenState extends State<VaultScreen> {
   final _search = TextEditingController();
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showPending());
+  }
+
+  Future<void> _showPending() async {
+    if (!mounted) return;
+    final pending = AppScope.read(context).pending;
+    if (pending.reenableBiometric) {
+      pending
+        ..reenableBiometric = false
+        ..offerBiometric = false;
+      showMessage(
+        context,
+        'Cambiaron las huellas o el bloqueo del teléfono: '
+        'confirmá para volver a activar la huella.',
+      );
+      await enableBiometric(context);
+    } else if (pending.offerBiometric) {
+      pending.offerBiometric = false;
+      await offerBiometric(context);
+    }
+  }
 
   @override
   void dispose() {
@@ -64,12 +90,10 @@ class _VaultScreenState extends State<VaultScreen> {
             onPressed: _generator,
           ),
           IconButton(
-            tooltip: 'Seguridad y limitaciones',
-            icon: const Icon(Icons.info_outline),
+            tooltip: 'Ajustes y copias',
+            icon: const Icon(Icons.settings_outlined),
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const SecurityInfoScreen(),
-              ),
+              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
             ),
           ),
           IconButton(

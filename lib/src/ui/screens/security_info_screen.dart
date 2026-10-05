@@ -55,19 +55,26 @@ class SecurityInfoScreen extends StatelessWidget {
                         '${KdfParams.defaultIterations} pasadas, '
                         '${KdfParams.defaultParallelism} carriles) y una sal '
                         'aleatoria.',
-                    'La contraseña maestra y la clave nunca se guardan.',
+                    'La contraseña maestra nunca se guarda, y la clave '
+                        'nunca se guarda sin cifrar.',
                     'Los datos solo están en este teléfono: sin cuentas, '
                         'servidores, sincronización ni permiso de Internet.',
                     'Se bloquea al salir de la aplicación y tras '
                         '$autoLock minutos sin actividad.',
                     'Se impiden capturas de pantalla y los datos se '
                         'excluyen de las copias de seguridad de Android.',
+                    'Con la huella activada, la clave de la bóveda se guarda '
+                        'cifrada por una llave del chip seguro del teléfono '
+                        'que no se puede extraer y que exige huella o '
+                        'bloqueo de pantalla en cada uso.',
+                    'Las copias exportadas están cifradas igual que la '
+                        'bóveda, con tu contraseña maestra.',
                   ]),
                   section('Limitaciones', [
                     'No hay recuperación: sin la contraseña maestra la '
                         'bóveda no se puede abrir.',
                     'Desinstalar la aplicación o borrar sus datos elimina '
-                        'la bóveda. Tampoco se copia a un teléfono nuevo.',
+                        'la bóveda. Exportá copias para no perderla.',
                     'Mientras está desbloqueada, los datos descifrados '
                         'están en la memoria del teléfono. Un móvil con '
                         'malware o con root puede leerlos.',
@@ -77,6 +84,14 @@ class SecurityInfoScreen extends StatelessWidget {
                         'plano Android puede impedirlo hasta que vuelvas.',
                     'Una contraseña maestra débil puede adivinarse si '
                         'alguien obtiene el archivo cifrado.',
+                    'Una copia exportada es tan segura como tu contraseña '
+                        'maestra: quien la consiga puede intentar adivinarla '
+                        'sin límite.',
+                    'Con la huella activada, quien conozca el patrón o PIN '
+                        'del teléfono también puede abrir Cassaforte.',
+                    'Si cambian las huellas o el bloqueo de pantalla, '
+                        'Android anula la llave y hay que usar la contraseña '
+                        'maestra.',
                   ]),
                 ],
               ),

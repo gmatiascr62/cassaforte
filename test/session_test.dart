@@ -362,4 +362,7 @@ class _HideOnceStore implements VaultStore {
 
   @override
   Future<void> writeAtomic(Uint8List bytes) => inner.writeAtomic(bytes);
+
+  @override
+  Future<void> delete() => inner.delete();
 }

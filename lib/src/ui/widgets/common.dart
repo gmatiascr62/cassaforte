@@ -167,3 +167,88 @@ Future<void> copySecret(
     'si no copias otra cosa.',
   );
 }
+
+/// Pide una contraseña en un diálogo. Devuelve `null` si se cancela.
+Future<String?> showPasswordPrompt(
+  BuildContext context, {
+  required String title,
+  required String message,
+  String confirmLabel = 'Aceptar',
+}) {
+  return showDialog<String>(
+    context: context,
+    builder: (_) => _PasswordPromptDialog(
+      title: title,
+      message: message,
+      confirmLabel: confirmLabel,
+    ),
+  );
+}
+
+class _PasswordPromptDialog extends StatefulWidget {
+  const _PasswordPromptDialog({
+    required this.title,
+    required this.message,
+    required this.confirmLabel,
+  });
+
+  final String title;
+  final String message;
+  final String confirmLabel;
+
+  @override
+  State<_PasswordPromptDialog> createState() => _PasswordPromptDialogState();
+}
+
+class _PasswordPromptDialogState extends State<_PasswordPromptDialog> {
+  final _controller = TextEditingController();
+  bool _visible = false;
+
+  @override
+  void dispose() {
+    _controller.clear();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_controller.text.isEmpty) return;
+    Navigator.of(context).pop(_controller.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(widget.message),
+            const SizedBox(height: 16),
+            SecureTextField(
+              controller: _controller,
+              label: 'Contraseña maestra',
+              obscure: !_visible,
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+              suffix: VisibilityToggle(
+                visible: _visible,
+                onChanged: (v) => setState(() => _visible = v),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(onPressed: _submit, child: Text(widget.confirmLabel)),
+      ],
+    );
+  }
+}

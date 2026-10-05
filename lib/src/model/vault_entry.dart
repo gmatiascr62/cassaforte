@@ -150,3 +150,31 @@ class VaultContents {
     ];
   }
 }
+
+/// Resultado de combinar las cuentas de una copia con las actuales.
+class MergeResult {
+  const MergeResult(this.entries, {required this.added, required this.updated});
+
+  final List<VaultEntry> entries;
+  final int added;
+  final int updated;
+}
+
+/// Fusiona [incoming] en [current]: añade las cuentas que faltan y, si una
+/// cuenta (mismo id) está en ambas, conserva la modificada más recientemente.
+MergeResult mergeEntries(List<VaultEntry> current, List<VaultEntry> incoming) {
+  final byId = {for (final e in current) e.id: e};
+  var added = 0;
+  var updated = 0;
+  for (final e in incoming) {
+    final existing = byId[e.id];
+    if (existing == null) {
+      byId[e.id] = e;
+      added++;
+    } else if (e.updatedAt.isAfter(existing.updatedAt)) {
+      byId[e.id] = e;
+      updated++;
+    }
+  }
+  return MergeResult(byId.values.toList(), added: added, updated: updated);
+}

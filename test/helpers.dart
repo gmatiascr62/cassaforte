@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cassaforte/src/crypto/kdf.dart';
+import 'package:cassaforte/src/security/biometric_unlock.dart';
 import 'package:cassaforte/src/security/clipboard_guard.dart';
+import 'package:cassaforte/src/storage/backup_files.dart';
 import 'package:cassaforte/src/storage/vault_store.dart';
 
 /// Parámetros de Argon2id mínimos para que las pruebas sean rápidas.
@@ -29,6 +31,9 @@ class MemoryVaultStore implements VaultStore {
     if (b == null) throw StateError('No existe');
     return Uint8List.fromList(b);
   }
+
+  @override
+  Future<void> delete() async => bytes = null;
 
   @override
   Future<void> writeAtomic(Uint8List data) async {
@@ -91,4 +96,65 @@ class FakeClipboard implements SecureClipboard {
     clears++;
     return ClearResult.cleared;
   }
+}
+
+/// Keystore simulado: "cifra" con XOR y una llave aleatoria; puede simular
+/// cancelación o invalidación.
+class FakeBiometricPlatform implements BiometricPlatform {
+  BiometricAvailability status = BiometricAvailability.available;
+  Uint8List? _hwKey;
+  bool cancelNext = false;
+  int prompts = 0;
+
+  /// Simula que el usuario añadió una huella (Android destruye la llave).
+  void invalidate() => _hwKey = null;
+
+  bool get hasKey => _hwKey != null;
+
+  @override
+  Future<BiometricAvailability> availability() async => status;
+
+  @override
+  Future<WrappedKey> wrap(Uint8List key) async {
+    prompts++;
+    if (cancelNext) {
+      cancelNext = false;
+      throw const BiometricCanceledException();
+    }
+    _hwKey = randomBytes(key.length);
+    return WrappedKey(iv: randomBytes(12), data: _xor(key, _hwKey!));
+  }
+
+  @override
+  Future<Uint8List> unwrap(WrappedKey wrapped) async {
+    final hw = _hwKey;
+    if (hw == null) throw const BiometricInvalidatedException();
+    prompts++;
+    if (cancelNext) {
+      cancelNext = false;
+      throw const BiometricCanceledException();
+    }
+    return _xor(wrapped.data, hw);
+  }
+
+  @override
+  Future<void> deleteKey() async => _hwKey = null;
+
+  static Uint8List _xor(Uint8List a, Uint8List b) =>
+      Uint8List.fromList([for (var i = 0; i < a.length; i++) a[i] ^ b[i]]);
+}
+
+/// Selector de archivos simulado.
+class FakeBackupFiles implements BackupFiles {
+  Uint8List? saved;
+  Uint8List? toOpen;
+
+  @override
+  Future<bool> save(String suggestedName, Uint8List bytes) async {
+    saved = Uint8List.fromList(bytes);
+    return true;
+  }
+
+  @override
+  Future<Uint8List?> open() async => toOpen;
 }

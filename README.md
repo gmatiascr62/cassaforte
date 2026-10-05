@@ -2,7 +2,7 @@
 
 Gestor de contraseñas para Android, personal y **totalmente local**: sin cuentas, servidores, sincronización, publicidad ni analítica. Hecho con Flutter/Dart.
 
-> ⚠️ **No hay recuperación posible.** Si olvidas la contraseña maestra, o si se pierden los datos del móvil (desinstalar la app, borrar sus datos, restablecer o perder el teléfono), la bóveda no se puede recuperar. Cassaforte no hace copias en la nube ni exporta datos.
+> ⚠️ **No hay recuperación posible.** Si olvidas la contraseña maestra, o si se pierden los datos del móvil (desinstalar la app, borrar sus datos, restablecer o perder el teléfono), la bóveda no se puede recuperar. Cassaforte no hace copias automáticas en la nube: **exporta copias cifradas** desde *Ajustes* y guárdalas fuera del teléfono.
 
 ## Funciones
 
@@ -13,6 +13,8 @@ Gestor de contraseñas para Android, personal y **totalmente local**: sin cuenta
 - Generador de contraseñas con `Random.secure()` (CSPRNG del sistema): longitud de 8 a 64; minúsculas, mayúsculas, números y símbolos; opción para evitar caracteres ambiguos. Garantiza al menos un carácter de cada tipo elegido.
 - Copiar al portapapeles con borrado automático a los 20 s, **solo si** el portapapeles sigue conteniendo lo que copió Cassaforte.
 - Bloqueo al pasar a segundo plano y tras 2 minutos sin actividad.
+- **Desbloqueo con huella o con el patrón/PIN del teléfono** (Android 11+), opcional. La contraseña maestra se sigue pidiendo para las copias y si Android invalida la llave.
+- **Copias de seguridad cifradas**: exportar la bóveda a un archivo `.cassaforte` (donde elijas: Descargas, Drive, USB…) e importarla (fusionar o reemplazar) o restaurarla al empezar en un teléfono nuevo.
 - Interfaz en español, Material 3, tema claro/oscuro, adaptada a pantallas grandes.
 
 ## Diseño de seguridad
@@ -24,10 +26,13 @@ Gestor de contraseñas para Android, personal y **totalmente local**: sin cuenta
 | Nonce | 12 bytes aleatorios nuevos en **cada** guardado |
 | Qué se cifra | Todo el contenido: nombres, direcciones, usuarios, contraseñas, notas y fechas |
 | Cabecera | Formato, versión, parámetros de Argon2id, sal y nonce (en claro, necesarios para descifrar). Los parámetros se autentican como AAD: cualquier cambio hace fallar el descifrado. Se rechazan parámetros fuera de límites razonables. |
-| Contraseña maestra y clave | Nunca se guardan en disco, preferencias ni registros. La clave solo existe en memoria mientras la bóveda está abierta y se sobrescribe con ceros al bloquear. |
+| Contraseña maestra y clave | La contraseña maestra nunca se guarda. La clave nunca se guarda sin cifrar (solo cifrada por el Keystore si se activa la huella); no aparece en preferencias ni registros. La clave solo existe en memoria mientras la bóveda está abierta y se sobrescribe con ceros al bloquear. |
 | Contraseña incorrecta / archivo alterado | Falla la autenticación GCM y no se escribe nada. Un archivo dañado nunca se sobrescribe; la creación de una bóveda nueva se niega si ya existe una. |
 | Guardado atómico | Se escribe `vault.cassaforte.tmp`, se vuelca a disco (`flush`) y se renombra sobre el archivo final. Si algo falla, queda la versión anterior completa. |
 | Bloqueo y operaciones asíncronas | Cada bloqueo incrementa un contador de sesión. Un desbloqueo o creación en curso que termine después del bloqueo se descarta y la sesión sigue bloqueada. Un guardado en curso termina de escribirse (archivo completo y cifrado) pero no reabre la sesión. Los guardados se encadenan para que no se pisen. Al bloquear se cierran todas las pantallas y diálogos. |
+| Huella / patrón | La clave de la bóveda se cifra (AES-256-GCM) con una llave del Android Keystore, generada en StrongBox si existe, no exportable, que exige `BIOMETRIC_STRONG` o el bloqueo de pantalla en **cada** uso (`setUserAuthenticationParameters(0, …)`) y se invalida al añadir huellas o quitar el bloqueo (`setInvalidatedByBiometricEnrollment`). Se usa el `BiometricPrompt` del sistema con `CryptoObject`. Solo se guarda en disco la clave ya cifrada por esa llave. |
+| Copias | El archivo exportado es el mismo archivo cifrado de la bóveda (misma cabecera, Argon2id + AES-256-GCM). Exportar exige escribir la contraseña maestra. Importar la valida y descifra antes de tocar nada; las cuentas importadas se vuelven a cifrar con la clave actual (la contraseña maestra no cambia). Restaurar nunca sobrescribe una bóveda existente. Se usa el selector de archivos del sistema, sin permisos de almacenamiento. |
+| Pantallas del sistema | Mientras está abierto el diálogo de huella o el selector de archivos no se bloquea por pasar a segundo plano; al cerrarse, si la app no vuelve a primer plano en 2 s, se bloquea. Un desbloqueo con huella iniciado antes de un bloqueo se descarta. |
 | Pantalla | `FLAG_SECURE`: sin capturas ni grabación, y contenido oculto en «Recientes». |
 | Copias de seguridad | `allowBackup="false"` y reglas que excluyen todo de la copia en la nube y de la transferencia entre dispositivos. |
 | Red | La versión release no tiene permiso `INTERNET` (se elimina explícitamente en el manifiesto release y el workflow lo comprueba en el APK). |
@@ -54,7 +59,10 @@ Formato del archivo (`files/vault.cassaforte`, en el directorio privado de la ap
 - **Metadatos:** el tamaño del archivo revela aproximadamente cuánto contenido hay.
 - **Dispositivo:** la seguridad depende del sistema Android (bloqueo de pantalla, cifrado del almacenamiento, ausencia de root/malware). No hay protección contra un atacante con acceso al móvil desbloqueado mientras la bóveda está abierta.
 - **Durabilidad:** el renombrado es atómico, pero Dart no permite sincronizar el directorio; un corte de energía justo en ese momento podría, en casos raros, dejar la versión anterior.
-- **Sin copia de seguridad:** a propósito, no hay exportación ni copia. Perder el móvil o desinstalar la app implica perder la bóveda.
+- **Copias manuales:** no hay copia automática. Si no exportas copias y pierdes el móvil o desinstalas la app, pierdes la bóveda.
+- **Copias exportadas:** su seguridad depende por completo de la contraseña maestra. Quien obtenga el archivo puede intentar adivinarla sin límite de intentos.
+- **Huella:** quien conozca el patrón/PIN del teléfono (o use tu dedo) puede abrir Cassaforte. En un teléfono con root o malware que controle el sistema, el Keystore puede usarse mientras el teléfono está desbloqueado. Si cambian las huellas o el bloqueo de pantalla, Android destruye la llave y hay que usar la contraseña maestra (la app lo detecta y ofrece reactivarla). Requiere Android 11 o superior.
+- Mientras está abierto el diálogo de huella o el selector de archivos, el bloqueo por pasar a segundo plano se aplaza (el bloqueo por inactividad sigue funcionando).
 - Argon2id se ejecuta en Dart puro: en móviles lentos el desbloqueo puede tardar varios segundos.
 
 ## Arquitectura
@@ -84,14 +92,16 @@ flutter analyze
 flutter test
 ```
 
-Las pruebas (44) cubren:
+Las pruebas (61) cubren:
 
 - **Cifrado:** vector oficial de Argon2id (RFC 9106 §5.3), vector de AES-256-GCM, ida y vuelta, nonce distinto en cada cifrado, ausencia de texto en claro, clave incorrecta, alteración de cada byte del texto cifrado, del nonce y de los parámetros de la cabecera, formatos no válidos.
 - **Persistencia:** crear, guardar, editar, eliminar y reabrir desde disco; no sobrescribir una bóveda existente; escritura atómica cuando falla la escritura y con temporales huérfanos; un guardado fallido no altera el estado.
 - **Contraseña incorrecta y archivo alterado/dañado:** se rechazan sin escribir nada.
 - **Bloqueo de sesión:** bloqueo durante el desbloqueo, la creación y el guardado; guardados simultáneos; bloqueo por inactividad.
 - **Generador** y **portapapeles** (borrado, no borrar lo copiado después, reintento al volver a primer plano).
-- **Interfaz:** flujo completo (crear, añadir, buscar, contraseña oculta, bloqueo al pasar a segundo plano, contraseña incorrecta, confirmación al eliminar) y generador.
+- **Copias:** exportar exige la maestra, abrir con contraseña incorrecta o archivo alterado falla, restaurar en un teléfono nuevo, no sobrescribir, fusionar (gana la versión más reciente) y reemplazar.
+- **Huella** (con un Keystore simulado): activar, desbloquear, cancelar, llave invalidada, clave que no corresponde a la bóveda, bloqueo durante el desbloqueo y desactivar.
+- **Interfaz:** flujo completo (crear, añadir, buscar, contraseña oculta, bloqueo al pasar a segundo plano, contraseña incorrecta, confirmación al eliminar), generador, y restaurar/exportar copias.
 
 ## Compilación e instalación
 
@@ -136,11 +146,12 @@ CASSAFORTE_KEY_PASSWORD=... flutter build apk --release
 ## Estado de verificación
 
 **Hecho:**
-- `flutter analyze` sin problemas y `flutter test` con las 44 pruebas superadas, en local y en GitHub Actions (Flutter 3.47.6).
+- `flutter analyze` sin problemas y `flutter test` con todas las pruebas superadas, en local y en GitHub Actions (Flutter 3.47.6).
 - El workflow compila el APK release (código Kotlin y Gradle incluidos), comprueba que solo declara el permiso interno `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` de AndroidX y ninguno de red, y lo sube como artefacto.
 
 **Pendiente:**
-- Probar en un dispositivo Android real: `FLAG_SECURE`, bloqueo al pasar a segundo plano, borrado del portapapeles (incluido el caso en segundo plano), exclusión de copias de seguridad, tiempo de desbloqueo con Argon2id y que la app funcione sin red.
+- Probar en un dispositivo Android real la huella y el patrón (activar, desbloquear, cancelar, añadir una huella nueva para comprobar la invalidación) y exportar/importar/restaurar copias con el selector de archivos. Las pruebas automáticas simulan el Keystore y el selector: el código nativo solo se ha compilado.
+- Probar también: `FLAG_SECURE`, bloqueo al pasar a segundo plano, borrado del portapapeles (incluido el caso en segundo plano), exclusión de copias de seguridad, tiempo de desbloqueo con Argon2id y que la app funcione sin red.
 - Hacer una revisión de seguridad independiente: el diseño usa primitivas estándar, pero no lo ha auditado un tercero.
 
 **Recomendación:** no guardes contraseñas reales hasta que el APK compile en Actions, hayas probado los puntos anteriores en tu móvil y configurado tu propia clave de firma. Aun así, conserva otra copia de las contraseñas críticas mientras ganas confianza en la app.

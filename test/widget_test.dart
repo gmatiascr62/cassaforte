@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:cassaforte/src/crypto/kdf.dart';
 import 'package:cassaforte/src/crypto/vault_cipher.dart';
+import 'package:cassaforte/src/model/vault_entry.dart';
+import 'package:cassaforte/src/security/biometric_unlock.dart';
 import 'package:cassaforte/src/security/clipboard_guard.dart';
 import 'package:cassaforte/src/session/vault_session.dart';
 import 'package:cassaforte/src/ui/cassaforte_app.dart';
@@ -44,7 +46,16 @@ void main() {
     final clipboard = ClipboardGuard(clipboard: FakeClipboard());
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpWidget(
-      CassaforteApp(session: session, clipboard: clipboard),
+      CassaforteApp(
+        session: session,
+        clipboard: clipboard,
+        biometric: BiometricUnlock(
+          store: MemoryVaultStore(),
+          platform: FakeBiometricPlatform()
+            ..status = BiometricAvailability.unsupported,
+        ),
+        backupFiles: FakeBackupFiles(),
+      ),
     );
     await session.initialize();
     await tester.pumpAndSettle();
@@ -163,6 +174,12 @@ void main() {
       CassaforteApp(
         session: session,
         clipboard: ClipboardGuard(clipboard: FakeClipboard()),
+        biometric: BiometricUnlock(
+          store: MemoryVaultStore(),
+          platform: FakeBiometricPlatform()
+            ..status = BiometricAvailability.unsupported,
+        ),
+        backupFiles: FakeBackupFiles(),
       ),
     );
     await session.initialize();
@@ -187,5 +204,78 @@ void main() {
 
     session.lock();
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('restaurar una copia al empezar y exportarla desde Ajustes', (
+    tester,
+  ) async {
+    // Copia hecha en "otro teléfono".
+    final source = VaultSession(
+      store: MemoryVaultStore(),
+      cipher: VaultCipher(keyDerivation: FakeKdf()),
+      newKdfParams: fastKdfParams,
+    );
+    await source.initialize();
+    await source.create('contraseña maestra 1');
+    await source.saveEntry(VaultEntry.create(title: 'Banco', password: 'x1'));
+    final backup = await source.exportBackup('contraseña maestra 1');
+    source.dispose();
+
+    final store = MemoryVaultStore();
+    final files = FakeBackupFiles()..toOpen = backup;
+    final session = VaultSession(
+      store: store,
+      cipher: VaultCipher(keyDerivation: FakeKdf()),
+      newKdfParams: fastKdfParams,
+    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpWidget(
+      CassaforteApp(
+        session: session,
+        clipboard: ClipboardGuard(clipboard: FakeClipboard()),
+        biometric: BiometricUnlock(
+          store: MemoryVaultStore(),
+          platform: FakeBiometricPlatform()
+            ..status = BiometricAvailability.unsupported,
+        ),
+        backupFiles: files,
+      ),
+    );
+    await session.initialize();
+    await tester.pumpAndSettle();
+
+    await tapVisible(tester, find.text('Restaurar copia de seguridad'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(TextFormField),
+      ),
+      'contraseña maestra 1',
+    );
+    await tester.tap(find.text('Abrir'));
+    await tester.pumpAndSettle();
+    expect(session.status, VaultStatus.unlocked);
+    expect(find.text('Banco'), findsOneWidget);
+
+    // Exportar desde Ajustes.
+    await tester.tap(find.byTooltip('Ajustes y copias'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Exportar copia'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(TextFormField),
+      ),
+      'contraseña maestra 1',
+    );
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    expect(files.saved, store.bytes);
+    expect(session.status, VaultStatus.unlocked);
+
+    session.lock();
+    await tester.pump(const Duration(seconds: 5));
   });
 }

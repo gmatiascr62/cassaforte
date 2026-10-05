@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../session/vault_session.dart';
 import '../app_scope.dart';
+import '../vault_actions.dart';
 import '../widgets/common.dart';
 
 /// Primera ejecución: crea la bóveda con una contraseña maestra confirmada.
@@ -36,8 +37,12 @@ class _SetupScreenState extends State<SetupScreen> {
       setState(() => _error = 'Debes confirmar que has leído el aviso.');
       return;
     }
-    final session = AppScope.read(context).session;
+    final scope = AppScope.read(context);
+    final session = scope.session;
     try {
+      // Una llave de huella de una bóveda anterior ya no sirve.
+      await scope.biometric.disable();
+      scope.pending.offerBiometric = true;
       await session.create(_password.text);
     } on VaultLockedException {
       // La aplicación pasó a segundo plano: la sesión queda bloqueada.
@@ -52,6 +57,15 @@ class _SetupScreenState extends State<SetupScreen> {
         );
       }
     }
+  }
+
+  Future<void> _restore() async {
+    setState(() => _error = null);
+    final scope = AppScope.read(context);
+    scope.pending.offerBiometric = true;
+    final error = await restoreBackup(context);
+    if (error != null) scope.pending.offerBiometric = false;
+    if (mounted && error != null) setState(() => _error = error);
   }
 
   @override
@@ -154,6 +168,20 @@ class _SetupScreenState extends State<SetupScreen> {
                     label: Text(
                       busy ? 'Protegiendo la bóveda…' : 'Crear bóveda',
                     ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  Text(
+                    '¿Ya tenés una copia de seguridad?',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: busy ? null : _restore,
+                    icon: const Icon(Icons.restore),
+                    label: const Text('Restaurar copia de seguridad'),
                   ),
                 ],
               ),

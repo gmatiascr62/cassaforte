@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import '../security/biometric_unlock.dart';
 import '../security/clipboard_guard.dart';
 import '../security/password_generator.dart';
 import '../session/vault_session.dart';
+import '../storage/backup_files.dart';
 import 'app_scope.dart';
+import 'external_ui_guard.dart';
 import 'screens/setup_screen.dart';
 import 'screens/unlock_screen.dart';
 import 'screens/vault_screen.dart';
@@ -16,11 +19,15 @@ class CassaforteApp extends StatefulWidget {
     super.key,
     required this.session,
     required this.clipboard,
+    required this.biometric,
+    this.backupFiles = const MethodChannelBackupFiles(),
     PasswordGenerator? generator,
   }) : _generator = generator;
 
   final VaultSession session;
   final ClipboardGuard clipboard;
+  final BiometricUnlock biometric;
+  final BackupFiles backupFiles;
   final PasswordGenerator? _generator;
 
   @override
@@ -32,6 +39,8 @@ class _CassaforteAppState extends State<CassaforteApp> {
   late final PasswordGenerator _generator =
       widget._generator ?? PasswordGenerator();
   late final AppLifecycleListener _lifecycle;
+  final _externalUi = ExternalUiGuard();
+  final _pending = PendingPrompts();
   late VaultStatus _lastStatus = widget.session.status;
 
   @override
@@ -40,10 +49,16 @@ class _CassaforteAppState extends State<CassaforteApp> {
     widget.session.addListener(_onSessionChanged);
     _lifecycle = AppLifecycleListener(
       // Bloquea en cuanto la aplicación deja de estar visible.
-      onHide: widget.session.lock,
-      onPause: widget.session.lock,
+      onHide: _lockIfLeft,
+      onPause: _lockIfLeft,
       onResume: () => unawaited(widget.clipboard.onAppResumed()),
     );
+  }
+
+  void _lockIfLeft() {
+    // Durante el diálogo de huella o el selector de archivos, ver
+    // [ExternalUiGuard].
+    if (!_externalUi.active) widget.session.lock();
   }
 
   void _onSessionChanged() {
@@ -79,6 +94,10 @@ class _CassaforteAppState extends State<CassaforteApp> {
       session: widget.session,
       clipboard: widget.clipboard,
       generator: _generator,
+      biometric: widget.biometric,
+      backupFiles: widget.backupFiles,
+      externalUi: _externalUi,
+      pending: _pending,
       child: MaterialApp(
         navigatorKey: _navigatorKey,
         title: 'Cassaforte',

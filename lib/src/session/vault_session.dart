@@ -150,7 +150,28 @@ class VaultSession extends ChangeNotifier {
 
   /// Abre la bóveda. Lanza [WrongPasswordException],
   /// [VaultCorruptedException] o [VaultLockedException].
-  Future<void> unlock(String masterPassword) async {
+  Future<void> unlock(String masterPassword) =>
+      _unlock((header) => _cipher.deriveKey(masterPassword, header.kdf));
+
+  /// Abre la bóveda con una clave ya derivada (desbloqueo con huella). Una
+  /// clave incorrecta se rechaza igual que una contraseña incorrecta.
+  ///
+  /// [startedAt] es el valor de [lockGeneration] cuando empezó la operación
+  /// (antes del diálogo de huella): si la sesión se bloqueó desde entonces,
+  /// no se abre.
+  Future<void> unlockWithKey(Uint8List key, {int? startedAt}) {
+    if (startedAt != null && startedAt != _epoch) {
+      return Future.error(const VaultLockedException());
+    }
+    return _unlock((_) async => Uint8List.fromList(key));
+  }
+
+  /// Cambia cada vez que se bloquea la sesión.
+  int get lockGeneration => _epoch;
+
+  Future<void> _unlock(
+    Future<Uint8List> Function(VaultHeader header) obtainKey,
+  ) async {
     if (_status != VaultStatus.locked || isBusy) {
       throw StateError('No se puede desbloquear ahora');
     }
@@ -162,19 +183,11 @@ class VaultSession extends ChangeNotifier {
       // Espera a que termine cualquier guardado pendiente antes de leer.
       await _queue;
       final bytes = await _store.read();
-      final header = _cipher.readHeader(bytes);
+      final header = _readHeader(bytes);
       if (epoch != _epoch) throw const VaultLockedException();
-      key = await _cipher.deriveKey(masterPassword, header.kdf);
+      key = await obtainKey(header);
       if (epoch != _epoch) throw const VaultLockedException();
-      final clear = await _cipher.open(fileBytes: bytes, key: key);
-      final List<VaultEntry> entries;
-      try {
-        entries = VaultContents.decode(clear);
-      } on FormatException {
-        throw const VaultCorruptedException();
-      } finally {
-        clear.fillRange(0, clear.length, 0);
-      }
+      final entries = await _decryptEntries(bytes, key);
       if (epoch != _epoch || _status != VaultStatus.locked) {
         throw const VaultLockedException();
       }
@@ -184,15 +197,163 @@ class VaultSession extends ChangeNotifier {
       _entries = _sorted(entries);
       _status = VaultStatus.unlocked;
       _restartIdleTimer();
-    } on VaultAuthenticationException {
-      throw const WrongPasswordException();
-    } on VaultFormatException {
-      throw const VaultCorruptedException();
     } finally {
       _wipe(key);
       if (_busyEpoch == epoch) _busyEpoch = null;
       _notify();
     }
+  }
+
+  /// Descifra un archivo de copia de seguridad (mismo formato que la
+  /// bóveda) con su contraseña. No modifica nada.
+  Future<List<VaultEntry>> openBackup(Uint8List bytes, String password) async {
+    final header = _readHeader(bytes);
+    final key = await _cipher.deriveKey(password, header.kdf);
+    try {
+      return await _decryptEntries(bytes, key);
+    } finally {
+      _wipe(key);
+    }
+  }
+
+  /// Primera ejecución: restaura una copia de seguridad como bóveda nueva.
+  /// La contraseña maestra pasa a ser la de la copia. Nunca sobrescribe una
+  /// bóveda existente.
+  Future<void> restoreBackup(Uint8List bytes, String password) async {
+    if (_status != VaultStatus.needsSetup || isBusy) {
+      throw StateError('No se puede restaurar ahora');
+    }
+    final epoch = _epoch;
+    _busyEpoch = epoch;
+    _notify();
+    Uint8List? key;
+    try {
+      await _queue;
+      if (await _store.exists()) {
+        _status = VaultStatus.locked;
+        throw const VaultAlreadyExistsException();
+      }
+      final header = _readHeader(bytes);
+      key = await _cipher.deriveKey(password, header.kdf);
+      final entries = await _decryptEntries(bytes, key);
+      if (await _store.exists()) {
+        _status = VaultStatus.locked;
+        throw const VaultAlreadyExistsException();
+      }
+      // El archivo ya está cifrado y autenticado: se guarda tal cual.
+      await _store.writeAtomic(Uint8List.fromList(bytes));
+      if (epoch != _epoch) {
+        _status = VaultStatus.locked;
+        throw const VaultLockedException();
+      }
+      _key = key;
+      key = null;
+      _kdf = header.kdf;
+      _entries = _sorted(entries);
+      _status = VaultStatus.unlocked;
+      _restartIdleTimer();
+    } finally {
+      _wipe(key);
+      if (_busyEpoch == epoch) _busyEpoch = null;
+      _notify();
+    }
+  }
+
+  /// Devuelve el archivo cifrado de la bóveda para guardarlo como copia de
+  /// seguridad. Exige la contraseña maestra para asegurarse de que el
+  /// usuario la recuerda: sin ella la copia no sirve.
+  Future<Uint8List> exportBackup(String masterPassword) async {
+    final key = _key;
+    if (_status != VaultStatus.unlocked || key == null) {
+      throw const VaultLockedException();
+    }
+    final epoch = _epoch;
+    final keyCopy = Uint8List.fromList(key);
+    Uint8List? derived;
+    try {
+      await _queue;
+      final bytes = await _store.read();
+      final header = _readHeader(bytes);
+      derived = await _cipher.deriveKey(masterPassword, header.kdf);
+      if (!_constantTimeEquals(derived, keyCopy)) {
+        throw const WrongPasswordException();
+      }
+      if (epoch != _epoch) throw const VaultLockedException();
+      return bytes;
+    } finally {
+      _wipe(keyCopy);
+      _wipe(derived);
+    }
+  }
+
+  /// Añade cuentas de una copia. Con [replace], sustituye todas las cuentas
+  /// actuales; si no, las fusiona (ver [mergeEntries]). La contraseña
+  /// maestra actual no cambia.
+  Future<MergeResult> importEntries(
+    List<VaultEntry> incoming, {
+    required bool replace,
+  }) async {
+    late MergeResult result;
+    await _mutate((current) {
+      result = replace
+          ? MergeResult(List.of(incoming), added: incoming.length, updated: 0)
+          : mergeEntries(current, incoming);
+      return result.entries;
+    });
+    return result;
+  }
+
+  /// Ejecuta [action] con una copia de la clave (para protegerla con la
+  /// huella). La copia se borra al terminar.
+  Future<T> withKey<T>(Future<T> Function(Uint8List key) action) async {
+    final key = _key;
+    if (_status != VaultStatus.unlocked || key == null) {
+      throw const VaultLockedException();
+    }
+    final copy = Uint8List.fromList(key);
+    try {
+      return await action(copy);
+    } finally {
+      _wipe(copy);
+    }
+  }
+
+  VaultHeader _readHeader(Uint8List bytes) {
+    try {
+      return _cipher.readHeader(bytes);
+    } on VaultFormatException {
+      throw const VaultCorruptedException();
+    }
+  }
+
+  Future<List<VaultEntry>> _decryptEntries(
+    Uint8List bytes,
+    Uint8List key,
+  ) async {
+    final Uint8List clear;
+    try {
+      clear = await _cipher.open(fileBytes: bytes, key: key);
+    } on VaultAuthenticationException {
+      throw const WrongPasswordException();
+    } on VaultFormatException {
+      throw const VaultCorruptedException();
+    }
+    try {
+      return VaultContents.decode(clear);
+    } on FormatException {
+      throw const VaultCorruptedException();
+    } finally {
+      clear.fillRange(0, clear.length, 0);
+    }
+  }
+
+  static bool _constantTimeEquals(Uint8List a, Uint8List b) {
+    if (a.length != b.length) return false;
+    var diff = 0;
+    for (var i = 0; i < a.length; i++) {
+      diff |= a[i] ^ b[i];
+    }
+    return diff == 0;
   }
 
   /// Bloquea la sesión inmediatamente y borra la clave de la memoria.

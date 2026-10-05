@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.os.PersistableBundle
@@ -13,6 +14,8 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    private var backupFiles: BackupFilesChannel? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Impide capturas y grabaciones de pantalla, y oculta el contenido
         // en la vista de aplicaciones recientes.
@@ -25,6 +28,12 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        val messenger = flutterEngine.dartExecutor.binaryMessenger
+        MethodChannel(messenger, "cassaforte/biometric")
+            .setMethodCallHandler(BiometricChannel(this))
+        val files = BackupFilesChannel(this)
+        backupFiles = files
+        MethodChannel(messenger, "cassaforte/files").setMethodCallHandler(files)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
                 try {
@@ -44,6 +53,12 @@ class MainActivity : FlutterActivity() {
                     result.error("clipboard", e.javaClass.simpleName, null)
                 }
             }
+    }
+
+    // Resultado del selector de archivos (copias de seguridad).
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (backupFiles?.onActivityResult(requestCode, resultCode, data) == true) return
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     private fun clipboard(): ClipboardManager =
