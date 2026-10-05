@@ -189,6 +189,8 @@ String biometricUnavailableText(BiometricAvailability availability) =>
             'los ajustes del teléfono.',
       BiometricAvailability.unsupported =>
         'Este teléfono no es compatible (hace falta Android 11 o superior).',
+      BiometricAvailability.error =>
+        'No se pudo comprobar la huella en este teléfono.',
     };
 
 /// Tras crear o restaurar la bóveda, ofrece activar la huella.

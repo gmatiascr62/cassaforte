@@ -14,6 +14,9 @@ enum BiometricAvailability {
 
   /// Android anterior a 11 o sin hardware compatible.
   unsupported,
+
+  /// El sistema devolvió un error al comprobarlo.
+  error,
 }
 
 /// El usuario canceló el diálogo de huella.
@@ -73,6 +76,8 @@ class MethodChannelBiometricPlatform implements BiometricPlatform {
       };
     } on MissingPluginException {
       return BiometricAvailability.unsupported;
+    } on PlatformException {
+      return BiometricAvailability.error;
     }
   }
 

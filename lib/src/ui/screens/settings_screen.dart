@@ -27,7 +27,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _refresh() async {
     final biometric = AppScope.read(context).biometric;
-    final availability = await biometric.availability();
+    BiometricAvailability availability;
+    try {
+      availability = await biometric.availability();
+    } catch (_) {
+      availability = BiometricAvailability.error;
+    }
     final enabled = await biometric.isEnabled();
     if (mounted) {
       setState(() {

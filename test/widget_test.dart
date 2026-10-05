@@ -278,4 +278,89 @@ void main() {
     session.lock();
     await tester.pump(const Duration(seconds: 5));
   });
+
+  Future<VaultSession> openVaultWith(
+    WidgetTester tester,
+    FakeBiometricPlatform platform,
+  ) async {
+    final session = VaultSession(
+      store: MemoryVaultStore(),
+      cipher: VaultCipher(keyDerivation: FakeKdf()),
+      newKdfParams: fastKdfParams,
+    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpWidget(
+      CassaforteApp(
+        session: session,
+        clipboard: ClipboardGuard(clipboard: FakeClipboard()),
+        biometric: BiometricUnlock(
+          store: MemoryVaultStore(),
+          platform: platform,
+        ),
+        backupFiles: FakeBackupFiles(),
+      ),
+    );
+    await session.initialize();
+    await session.create('contraseña maestra 1');
+    await tester.pumpAndSettle();
+    return session;
+  }
+
+  testWidgets('activar la huella desde Ajustes y desbloquear con ella', (
+    tester,
+  ) async {
+    final platform = FakeBiometricPlatform();
+    final session = await openVaultWith(tester, platform);
+
+    await tester.tap(find.byTooltip('Ajustes y copias'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Comprobando'), findsNothing);
+    final toggle = find.byType(SwitchListTile);
+    expect(tester.widget<SwitchListTile>(toggle).onChanged, isNotNull);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+    expect(platform.prompts, 1);
+
+    // Al bloquear, la pantalla de desbloqueo muestra la huella sola.
+    session.lock();
+    await tester.pumpAndSettle();
+    expect(session.status, VaultStatus.unlocked);
+    expect(platform.prompts, 2);
+
+    // Si se cancela, queda el botón para intentarlo de nuevo.
+    platform.cancelNext = true;
+    session.lock();
+    await tester.pumpAndSettle();
+    expect(session.status, VaultStatus.locked);
+    await tester.tap(find.text('Usar huella o patrón'));
+    await tester.pumpAndSettle();
+    expect(session.status, VaultStatus.unlocked);
+
+    // Al terminar, se bloquea sin volver a abrir.
+    platform.cancelNext = true;
+    session.lock();
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('si el sistema falla al comprobar la huella, no se queda '
+      'en «Comprobando»', (tester) async {
+    final platform = FakeBiometricPlatform()..failStatus = true;
+    final session = await openVaultWith(tester, platform);
+
+    await tester.tap(find.byTooltip('Ajustes y copias'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Comprobando'), findsNothing);
+    expect(
+      find.text('No se pudo comprobar la huella en este teléfono.'),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<SwitchListTile>(find.byType(SwitchListTile)).onChanged,
+      isNull,
+    );
+
+    session.lock();
+    await tester.pump(const Duration(seconds: 5));
+  });
 }

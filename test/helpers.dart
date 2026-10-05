@@ -111,8 +111,13 @@ class FakeBiometricPlatform implements BiometricPlatform {
 
   bool get hasKey => _hwKey != null;
 
+  bool failStatus = false;
+
   @override
-  Future<BiometricAvailability> availability() async => status;
+  Future<BiometricAvailability> availability() async {
+    if (failStatus) throw StateError('Fallo del sistema simulado');
+    return status;
+  }
 
   @override
   Future<WrappedKey> wrap(Uint8List key) async {

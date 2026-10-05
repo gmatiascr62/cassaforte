@@ -35,7 +35,7 @@ Gestor de contraseñas para Android, personal y **totalmente local**: sin cuenta
 | Pantallas del sistema | Mientras está abierto el diálogo de huella o el selector de archivos no se bloquea por pasar a segundo plano; al cerrarse, si la app no vuelve a primer plano en 2 s, se bloquea. Un desbloqueo con huella iniciado antes de un bloqueo se descarta. |
 | Pantalla | `FLAG_SECURE`: sin capturas ni grabación, y contenido oculto en «Recientes». |
 | Copias de seguridad | `allowBackup="false"` y reglas que excluyen todo de la copia en la nube y de la transferencia entre dispositivos. |
-| Red | La versión release no tiene permiso `INTERNET` (se elimina explícitamente en el manifiesto release y el workflow lo comprueba en el APK). |
+| Red | La versión release no tiene permiso `INTERNET` (su único permiso es `USE_BIOMETRIC`, para la huella) (se elimina explícitamente en el manifiesto release y el workflow lo comprueba en el APK). |
 | Teclado | Campos sin sugerencias, autocorrección ni aprendizaje personalizado (modo incógnito del teclado, si el teclado lo respeta). |
 | Portapapeles | El contenido se marca como sensible (Android 13+ no lo muestra en la vista previa). Para saber si sigue siendo nuestra copia se compara la marca de tiempo de la copia, sin leer el texto. |
 
@@ -92,7 +92,7 @@ flutter analyze
 flutter test
 ```
 
-Las pruebas (61) cubren:
+Las pruebas (63) cubren:
 
 - **Cifrado:** vector oficial de Argon2id (RFC 9106 §5.3), vector de AES-256-GCM, ida y vuelta, nonce distinto en cada cifrado, ausencia de texto en claro, clave incorrecta, alteración de cada byte del texto cifrado, del nonce y de los parámetros de la cabecera, formatos no válidos.
 - **Persistencia:** crear, guardar, editar, eliminar y reabrir desde disco; no sobrescribir una bóveda existente; escritura atómica cuando falla la escritura y con temporales huérfanos; un guardado fallido no altera el estado.
