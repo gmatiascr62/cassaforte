@@ -19,6 +19,13 @@ class EntryDetailScreen extends StatefulWidget {
 class _EntryDetailScreenState extends State<EntryDetailScreen> {
   bool _visible = false;
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Al bloquearse la bóveda, la contraseña vuelve a ocultarse.
+    if (!AppScope.of(context).session.isUnlocked) _visible = false;
+  }
+
   Future<void> _edit(VaultEntry entry) async {
     await Navigator.of(context).push(
       MaterialPageRoute<String>(builder: (_) => EntryFormScreen(entry: entry)),

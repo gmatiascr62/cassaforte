@@ -25,6 +25,14 @@ class _EntryFormScreenState extends State<EntryFormScreen> {
   late final _password = TextEditingController(text: widget.entry?.password);
   late final _notes = TextEditingController(text: widget.entry?.notes);
   bool _visible = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Al bloquearse la bóveda, la contraseña vuelve a ocultarse.
+    if (!AppScope.of(context).session.isUnlocked) _visible = false;
+  }
+
   bool _saving = false;
 
   List<TextEditingController> get _controllers => [
@@ -92,88 +100,94 @@ class _EntryFormScreenState extends State<EntryFormScreen> {
   @override
   Widget build(BuildContext context) {
     final editing = widget.entry != null;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(editing ? 'Editar cuenta' : 'Nueva cuenta'),
-        actions: [
-          TextButton(
-            onPressed: _saving ? null : _save,
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              CenteredBody(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SecureTextField(
-                      controller: _title,
-                      label: 'Nombre de la página *',
-                      autofocus: !editing,
-                      textInputAction: TextInputAction.next,
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Indica el nombre de la página.'
-                          : null,
-                    ),
-                    const SizedBox(height: 12),
-                    SecureTextField(
-                      controller: _url,
-                      label: 'Dirección web',
-                      keyboardType: TextInputType.url,
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: 12),
-                    SecureTextField(
-                      controller: _username,
-                      label: 'Usuario o correo',
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: 12),
-                    SecureTextField(
-                      controller: _password,
-                      label: 'Contraseña *',
-                      obscure: !_visible,
-                      monospace: _visible,
-                      textInputAction: TextInputAction.next,
-                      validator: (v) => (v == null || v.isEmpty)
-                          ? 'Indica la contraseña.'
-                          : null,
-                      suffix: VisibilityToggle(
-                        visible: _visible,
-                        onChanged: (v) => setState(() => _visible = v),
+    // Con la bóveda bloqueada, el botón «atrás» no cierra el formulario
+    // oculto: lo escrito sigue ahí al desbloquear.
+    final locked = !AppScope.of(context).session.isUnlocked;
+    return PopScope(
+      canPop: !locked,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(editing ? 'Editar cuenta' : 'Nueva cuenta'),
+          actions: [
+            TextButton(
+              onPressed: _saving ? null : _save,
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                CenteredBody(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SecureTextField(
+                        controller: _title,
+                        label: 'Nombre de la página *',
+                        autofocus: !editing,
+                        textInputAction: TextInputAction.next,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Indica el nombre de la página.'
+                            : null,
                       ),
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: _generate,
-                        icon: const Icon(Icons.auto_awesome),
-                        label: const Text('Generar contraseña'),
+                      const SizedBox(height: 12),
+                      SecureTextField(
+                        controller: _url,
+                        label: 'Dirección web',
+                        keyboardType: TextInputType.url,
+                        textInputAction: TextInputAction.next,
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    SecureTextField(
-                      controller: _notes,
-                      label: 'Notas (opcional)',
-                      maxLines: 6,
-                    ),
-                    const SizedBox(height: 24),
-                    FilledButton.icon(
-                      onPressed: _saving ? null : _save,
-                      icon: const Icon(Icons.save_outlined),
-                      label: Text(_saving ? 'Guardando…' : 'Guardar'),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      SecureTextField(
+                        controller: _username,
+                        label: 'Usuario o correo',
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: 12),
+                      SecureTextField(
+                        controller: _password,
+                        label: 'Contraseña *',
+                        obscure: !_visible,
+                        monospace: _visible,
+                        textInputAction: TextInputAction.next,
+                        validator: (v) => (v == null || v.isEmpty)
+                            ? 'Indica la contraseña.'
+                            : null,
+                        suffix: VisibilityToggle(
+                          visible: _visible,
+                          onChanged: (v) => setState(() => _visible = v),
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: _generate,
+                          icon: const Icon(Icons.auto_awesome),
+                          label: const Text('Generar contraseña'),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      SecureTextField(
+                        controller: _notes,
+                        label: 'Notas (opcional)',
+                        maxLines: 6,
+                      ),
+                      const SizedBox(height: 24),
+                      FilledButton.icon(
+                        onPressed: _saving ? null : _save,
+                        icon: const Icon(Icons.save_outlined),
+                        label: Text(_saving ? 'Guardando…' : 'Guardar'),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

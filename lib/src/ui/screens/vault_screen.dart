@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../model/vault_entry.dart';
+import '../../session/vault_session.dart';
 import '../app_scope.dart';
 import '../vault_actions.dart';
 import '../widgets/common.dart';
@@ -21,14 +22,31 @@ class _VaultScreenState extends State<VaultScreen> {
   final _search = TextEditingController();
   String _query = '';
 
+  VaultSession? _session;
+  bool _wasUnlocked = false;
+
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _showPending());
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final session = AppScope.read(context).session;
+    if (!identical(session, _session)) {
+      _session?.removeListener(_onSessionChanged);
+      _session = session..addListener(_onSessionChanged);
+      _onSessionChanged();
+    }
+  }
+
+  /// Los avisos pendientes se muestran cada vez que se abre la bóveda.
+  void _onSessionChanged() {
+    final unlocked = _session!.isUnlocked;
+    if (unlocked && !_wasUnlocked) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showPending());
+    }
+    _wasUnlocked = unlocked;
   }
 
   Future<void> _showPending() async {
-    if (!mounted) return;
+    if (!mounted || !(_session?.isUnlocked ?? false)) return;
     final pending = AppScope.read(context).pending;
     if (pending.reenableBiometric) {
       pending
@@ -48,6 +66,7 @@ class _VaultScreenState extends State<VaultScreen> {
 
   @override
   void dispose() {
+    _session?.removeListener(_onSessionChanged);
     _search.dispose();
     super.dispose();
   }

@@ -29,7 +29,7 @@ Gestor de contraseñas para Android, personal y **totalmente local**: sin cuenta
 | Contraseña maestra y clave | La contraseña maestra nunca se guarda. La clave nunca se guarda sin cifrar (solo cifrada por el Keystore si se activa la huella); no aparece en preferencias ni registros. La clave solo existe en memoria mientras la bóveda está abierta y se sobrescribe con ceros al bloquear. |
 | Contraseña incorrecta / archivo alterado | Falla la autenticación GCM y no se escribe nada. Un archivo dañado nunca se sobrescribe; la creación de una bóveda nueva se niega si ya existe una. |
 | Guardado atómico | Se escribe `vault.cassaforte.tmp`, se vuelca a disco (`flush`) y se renombra sobre el archivo final. Si algo falla, queda la versión anterior completa. |
-| Bloqueo y operaciones asíncronas | Cada bloqueo incrementa un contador de sesión. Un desbloqueo o creación en curso que termine después del bloqueo se descarta y la sesión sigue bloqueada. Un guardado en curso termina de escribirse (archivo completo y cifrado) pero no reabre la sesión. Los guardados se encadenan para que no se pisen. Al bloquear se cierran todas las pantallas y diálogos. |
+| Bloqueo y operaciones asíncronas | Cada bloqueo incrementa un contador de sesión. Un desbloqueo o creación en curso que termine después del bloqueo se descarta y la sesión sigue bloqueada. Un guardado en curso termina de escribirse (archivo completo y cifrado) pero no reabre la sesión. Los guardados se encadenan para que no se pisen. Al bloquear, la pantalla de desbloqueo tapa la app: lo que había abierto (p. ej., un formulario a medio completar) queda oculto, sin foco ni semántica, y las contraseñas vuelven a ocultarse; al desbloquear se sigue donde se estaba. |
 | Huella / patrón | La clave de la bóveda se cifra (AES-256-GCM) con una llave del Android Keystore, generada en StrongBox si existe, no exportable, que exige `BIOMETRIC_STRONG` o el bloqueo de pantalla en **cada** uso (`setUserAuthenticationParameters(0, …)`) y se invalida al añadir huellas o quitar el bloqueo (`setInvalidatedByBiometricEnrollment`). Se usa el `BiometricPrompt` del sistema con `CryptoObject`. Solo se guarda en disco la clave ya cifrada por esa llave. |
 | Copias | El archivo exportado es el mismo archivo cifrado de la bóveda (misma cabecera, Argon2id + AES-256-GCM). Exportar exige escribir la contraseña maestra. Importar la valida y descifra antes de tocar nada; las cuentas importadas se vuelven a cifrar con la clave actual (la contraseña maestra no cambia). Restaurar nunca sobrescribe una bóveda existente. Se usa el selector de archivos del sistema, sin permisos de almacenamiento. |
 | Pantallas del sistema | Mientras está abierto el diálogo de huella o el selector de archivos no se bloquea por pasar a segundo plano; al cerrarse, si la app no vuelve a primer plano en 2 s, se bloquea. Un desbloqueo con huella iniciado antes de un bloqueo se descarta. |
@@ -62,6 +62,7 @@ Formato del archivo (`files/vault.cassaforte`, en el directorio privado de la ap
 - **Copias manuales:** no hay copia automática. Si no exportas copias y pierdes el móvil o desinstalas la app, pierdes la bóveda.
 - **Copias exportadas:** su seguridad depende por completo de la contraseña maestra. Quien obtenga el archivo puede intentar adivinarla sin límite de intentos.
 - **Huella:** quien conozca el patrón/PIN del teléfono (o use tu dedo) puede abrir Cassaforte. En un teléfono con root o malware que controle el sistema, el Keystore puede usarse mientras el teléfono está desbloqueado. Si cambian las huellas o el bloqueo de pantalla, Android destruye la llave y hay que usar la contraseña maestra (la app lo detecta y ofrece reactivarla). Requiere Android 11 o superior.
+- **Formulario a medio completar:** lo que se estaba escribiendo se conserva en memoria mientras la bóveda está bloqueada (oculto bajo la pantalla de bloqueo) para no perderlo. Si Android cierra la app en segundo plano, se pierde.
 - Mientras está abierto el diálogo de huella o el selector de archivos, el bloqueo por pasar a segundo plano se aplaza (el bloqueo por inactividad sigue funcionando).
 - Argon2id se ejecuta en Dart puro: en móviles lentos el desbloqueo puede tardar varios segundos.
 
@@ -92,7 +93,7 @@ flutter analyze
 flutter test
 ```
 
-Las pruebas (63) cubren:
+Las pruebas (64) cubren:
 
 - **Cifrado:** vector oficial de Argon2id (RFC 9106 §5.3), vector de AES-256-GCM, ida y vuelta, nonce distinto en cada cifrado, ausencia de texto en claro, clave incorrecta, alteración de cada byte del texto cifrado, del nonce y de los parámetros de la cabecera, formatos no válidos.
 - **Persistencia:** crear, guardar, editar, eliminar y reabrir desde disco; no sobrescribir una bóveda existente; escritura atómica cuando falla la escritura y con temporales huérfanos; un guardado fallido no altera el estado.
@@ -101,7 +102,7 @@ Las pruebas (63) cubren:
 - **Generador** y **portapapeles** (borrado, no borrar lo copiado después, reintento al volver a primer plano).
 - **Copias:** exportar exige la maestra, abrir con contraseña incorrecta o archivo alterado falla, restaurar en un teléfono nuevo, no sobrescribir, fusionar (gana la versión más reciente) y reemplazar.
 - **Huella** (con un Keystore simulado): activar, desbloquear, cancelar, llave invalidada, clave que no corresponde a la bóveda, bloqueo durante el desbloqueo y desactivar.
-- **Interfaz:** flujo completo (crear, añadir, buscar, contraseña oculta, bloqueo al pasar a segundo plano, contraseña incorrecta, confirmación al eliminar), generador, y restaurar/exportar copias.
+- **Interfaz:** flujo completo (crear, añadir, buscar, contraseña oculta, bloqueo al pasar a segundo plano, contraseña incorrecta, confirmación al eliminar), conservar un formulario a medio completar tras bloquear, generador, y restaurar/exportar copias.
 
 ## Compilación e instalación
 

@@ -64,8 +64,10 @@ class _CassaforteAppState extends State<CassaforteApp> {
   void _onSessionChanged() {
     final status = widget.session.status;
     if (_lastStatus == VaultStatus.unlocked && status != VaultStatus.unlocked) {
-      // Cierra cualquier pantalla, diálogo u hoja abierta sobre la bóveda.
-      _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      // Las pantallas abiertas (p. ej., un formulario a medio completar) se
+      // conservan debajo de la pantalla de bloqueo, ocultas y sin foco, para
+      // seguir donde se estaba al desbloquear.
+      FocusManager.instance.primaryFocus?.unfocus();
     }
     _lastStatus = status;
   }
@@ -110,7 +112,7 @@ class _CassaforteAppState extends State<CassaforteApp> {
         builder: (context, child) => Listener(
           behavior: HitTestBehavior.translucent,
           onPointerDown: (_) => widget.session.registerActivity(),
-          child: child,
+          child: _LockLayer(child: child!),
         ),
         home: const _Home(),
       ),
@@ -129,8 +131,45 @@ class _Home extends StatelessWidget {
         body: Center(child: CircularProgressIndicator()),
       ),
       VaultStatus.needsSetup => const SetupScreen(),
-      VaultStatus.locked => const UnlockScreen(),
-      VaultStatus.unlocked => const VaultScreen(),
+      // Bloqueada: la lista queda debajo de la pantalla de bloqueo.
+      VaultStatus.locked || VaultStatus.unlocked => const VaultScreen(),
     };
+  }
+}
+
+/// Con la bóveda bloqueada, oculta toda la navegación (sin pintarla, sin
+/// foco, sin semántica y sin animaciones) y muestra la pantalla de
+/// desbloqueo encima. Así no se pierde lo que se estaba escribiendo.
+class _LockLayer extends StatelessWidget {
+  const _LockLayer({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final locked = AppScope.of(context).session.status == VaultStatus.locked;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ExcludeFocus(
+          excluding: locked,
+          child: ExcludeSemantics(
+            excluding: locked,
+            child: TickerMode(
+              enabled: !locked,
+              child: Offstage(offstage: locked, child: child),
+            ),
+          ),
+        ),
+        if (locked)
+          // Overlay propio: los campos de texto lo necesitan y la pantalla
+          // de bloqueo está fuera del Navigator.
+          Overlay(
+            initialEntries: [
+              OverlayEntry(builder: (_) => const UnlockScreen()),
+            ],
+          ),
+      ],
+    );
   }
 }

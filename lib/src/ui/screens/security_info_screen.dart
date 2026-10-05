@@ -92,6 +92,9 @@ class SecurityInfoScreen extends StatelessWidget {
                     'Si cambian las huellas o el bloqueo de pantalla, '
                         'Android anula la llave y hay que usar la contraseña '
                         'maestra.',
+                    'Lo que estés escribiendo en un formulario se conserva '
+                        'en memoria mientras la bóveda está bloqueada, para '
+                        'que no lo pierdas al volver.',
                   ]),
                 ],
               ),

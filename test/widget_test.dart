@@ -138,11 +138,11 @@ void main() {
     await tester.enterText(find.byType(TextFormField), 'contraseña maestra 1');
     await tapVisible(tester, find.widgetWithText(FilledButton, 'Desbloquear'));
     await tester.pumpAndSettle();
-    expect(find.text('Correo'), findsOneWidget);
+    // Se vuelve a la misma pantalla, con la contraseña oculta otra vez.
+    expect(find.byTooltip('Mostrar contraseña'), findsOneWidget);
+    expect(find.text('S3creta!'), findsNothing);
 
     // Eliminar pide confirmación.
-    await tapVisible(tester, find.text('Correo'));
-    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Eliminar'));
     await tester.pumpAndSettle();
     expect(find.text('¿Eliminar cuenta?'), findsOneWidget);
@@ -359,6 +359,56 @@ void main() {
       tester.widget<SwitchListTile>(find.byType(SwitchListTile)).onChanged,
       isNull,
     );
+
+    session.lock();
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('lo que se estaba escribiendo se conserva tras bloquear', (
+    tester,
+  ) async {
+    final platform = FakeBiometricPlatform()
+      ..status = BiometricAvailability.unsupported;
+    final session = await openVaultWith(tester, platform);
+
+    await tester.tap(find.text('Añadir'));
+    await tester.pumpAndSettle();
+    final form = find.byType(TextFormField);
+    await tester.enterText(form.at(0), 'Mi banco');
+    await tester.enterText(form.at(3), 'a-medias');
+
+    // Salir a otra aplicación bloquea la bóveda.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await tester.pumpAndSettle();
+    expect(session.status, VaultStatus.locked);
+    expect(find.text('Mi banco'), findsNothing); // oculto bajo el bloqueo
+    expect(find.text('Nueva cuenta'), findsNothing);
+
+    // «Atrás» con la bóveda bloqueada no descarta el formulario.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'contraseña maestra 1');
+    await tapVisible(tester, find.widgetWithText(FilledButton, 'Desbloquear'));
+    await tester.pumpAndSettle();
+
+    // Seguimos en el formulario con lo escrito.
+    expect(find.text('Nueva cuenta'), findsOneWidget);
+    expect(find.text('Mi banco'), findsOneWidget);
+    await tester.enterText(
+      find.byType(TextFormField).at(2),
+      'yo@banco.example',
+    );
+    await tapVisible(tester, find.widgetWithText(FilledButton, 'Guardar'));
+    await tester.pumpAndSettle();
+    final saved = session.entries.single;
+    expect(saved.title, 'Mi banco');
+    expect(saved.password, 'a-medias');
+    expect(saved.username, 'yo@banco.example');
 
     session.lock();
     await tester.pump(const Duration(seconds: 5));
