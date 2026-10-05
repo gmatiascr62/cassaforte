@@ -1,0 +1,126 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      # Ramas de trabajo de Claude, para validar los cambios antes de fusionarlos.
+      - 'claude/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.6'
+
+jobs:
+  build:
+    name: Analizar, probar y compilar
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v5
+
+      - name: Instalar Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar Flutter ${{ env.FLUTTER_VERSION }} (stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Versión de Flutter
+        run: |
+          flutter --disable-analytics
+          flutter --version
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: Comprobar formato
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: flutter analyze
+        run: flutter analyze
+
+      - name: flutter test
+        run: flutter test
+
+      # Si se han configurado los secretos, se firma con la clave propia.
+      # El almacén de claves se escribe en un directorio temporal del runner
+      # y se borra al terminar; nunca entra en el repositorio.
+      - name: Preparar clave de firma (opcional)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.CASSAFORTE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.CASSAFORTE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.CASSAFORTE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.CASSAFORTE_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            path="$RUNNER_TEMP/cassaforte-release.jks"
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$path"
+            {
+              echo "CASSAFORTE_KEYSTORE_PATH=$path"
+              echo "CASSAFORTE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "CASSAFORTE_KEY_ALIAS=$KEY_ALIAS"
+              echo "CASSAFORTE_KEY_PASSWORD=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            } >> "$GITHUB_ENV"
+            echo "SIGNING_KIND=clave propia (secretos del repositorio)" >> "$GITHUB_ENV"
+          else
+            echo "SIGNING_KIND=clave de depuración temporal (solo pruebas)" >> "$GITHUB_ENV"
+          fi
+
+      - name: Compilar APK
+        run: flutter build apk --release
+
+      - name: Verificar permisos y firma del APK
+        run: |
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          tools="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)"
+          echo "Permisos declarados:"
+          "$tools/aapt2" dump permissions "$apk" | tee permissions.txt
+          if grep -Eq 'android.permission.(INTERNET|ACCESS_NETWORK_STATE)' permissions.txt; then
+            echo "::error::El APK declara permisos de red."
+            exit 1
+          fi
+          "$tools/apksigner" verify --print-certs "$apk" | tee signature.txt
+          sha=$(grep -m1 'SHA-256 digest' signature.txt | sed 's/.*: //')
+          version=$(grep '^version:' pubspec.yaml | sed 's/version: *//')
+          name="cassaforte-${version%%+*}-${GITHUB_SHA::7}.apk"
+          cp "$apk" "$name"
+          echo "APK_NAME=$name" >> "$GITHUB_ENV"
+          {
+            echo "## APK de Cassaforte"
+            echo ""
+            echo "- Archivo: \`$name\`"
+            echo "- Firma: $SIGNING_KIND"
+            echo "- SHA-256 del certificado: \`$sha\`"
+            echo "- Flutter: $FLUTTER_VERSION"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Subir APK como artefacto
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ env.APK_NAME }}
+          path: ${{ env.APK_NAME }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Borrar la clave de firma temporal
+        if: always()
+        run: rm -f "$RUNNER_TEMP/cassaforte-release.jks"

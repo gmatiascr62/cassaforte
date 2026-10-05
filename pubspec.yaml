@@ -1,0 +1,26 @@
+name: cassaforte
+description: "Cassaforte: gestor de contraseñas local y cifrado para Android."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  # Primitivas criptográficas probadas (Argon2id, AES-256-GCM).
+  cryptography: ^2.9.0
+  # Ruta del directorio privado de la aplicación.
+  path_provider: ^2.1.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
