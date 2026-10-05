@@ -135,8 +135,7 @@ class BiometricChannel(private val activity: Activity) : MethodChannel.MethodCal
                     onFailure()
                     when (errorCode) {
                         BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED,
-                        BiometricPrompt.BIOMETRIC_ERROR_CANCELED,
-                        BiometricPrompt.BIOMETRIC_ERROR_NEGATIVE_BUTTON ->
+                        BiometricPrompt.BIOMETRIC_ERROR_CANCELED ->
                             reply.error("canceled", errString.toString(), null)
                         else -> reply.error("error", errString.toString(), null)
                     }
