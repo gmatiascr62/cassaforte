@@ -132,10 +132,10 @@ CASSAFORTE_KEY_PASSWORD=... flutter build apk --release
 ## Estado de verificación
 
 **Hecho:**
-- `flutter analyze` sin problemas y `flutter test` con las 44 pruebas superadas, en Linux con Flutter 3.47.6.
+- `flutter analyze` sin problemas y `flutter test` con las 44 pruebas superadas, en local y en GitHub Actions (Flutter 3.47.6).
+- El workflow compila el APK release (código Kotlin y Gradle incluidos), comprueba que solo declara el permiso interno `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` de AndroidX y ninguno de red, y lo sube como artefacto.
 
 **Pendiente:**
-- Compilar el APK: no se ha hecho todavía. En el entorno de desarrollo no se pudo descargar el SDK de Android y GitHub Actions aún no se ha ejecutado, por lo que el código nativo Kotlin y la configuración de Gradle no se han compilado nunca.
 - Probar en un dispositivo Android real: `FLAG_SECURE`, bloqueo al pasar a segundo plano, borrado del portapapeles (incluido el caso en segundo plano), exclusión de copias de seguridad, tiempo de desbloqueo con Argon2id y que la app funcione sin red.
 - Hacer una revisión de seguridad independiente: el diseño usa primitivas estándar, pero no lo ha auditado un tercero.
 
