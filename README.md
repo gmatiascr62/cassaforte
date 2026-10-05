@@ -1,17 +1,142 @@
-# cassaforte
+# Cassaforte
 
-Gestor de contraseñas local
+Gestor de contraseñas para Android, personal y **totalmente local**: sin cuentas, servidores, sincronización, publicidad ni analítica. Hecho con Flutter/Dart.
 
-## Getting Started
+> ⚠️ **No hay recuperación posible.** Si olvidas la contraseña maestra, o si se pierden los datos del móvil (desinstalar la app, borrar sus datos, restablecer o perder el teléfono), la bóveda no se puede recuperar. Cassaforte no hace copias en la nube ni exporta datos.
 
-This project is a starting point for a Flutter application.
+## Funciones
 
-A few resources to get you started if this is your first Flutter project:
+- Bóveda protegida por contraseña maestra (mínimo 10 caracteres, se pide dos veces y hay que aceptar el aviso de no recuperación).
+- Cuentas con nombre de la página, dirección web, usuario o correo, contraseña y notas opcionales.
+- Añadir, consultar, editar, eliminar (con confirmación) y buscar (por nombre, dirección, usuario y notas).
+- Contraseñas ocultas por defecto, con botón para mostrarlas.
+- Generador de contraseñas con `Random.secure()` (CSPRNG del sistema): longitud de 8 a 64; minúsculas, mayúsculas, números y símbolos; opción para evitar caracteres ambiguos. Garantiza al menos un carácter de cada tipo elegido.
+- Copiar al portapapeles con borrado automático a los 20 s, **solo si** el portapapeles sigue conteniendo lo que copió Cassaforte.
+- Bloqueo al pasar a segundo plano y tras 2 minutos sin actividad.
+- Interfaz en español, Material 3, tema claro/oscuro, adaptada a pantallas grandes.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Diseño de seguridad
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+| Aspecto | Implementación |
+|---|---|
+| Cifrado | AES-256-GCM (cifrado autenticado), paquete [`cryptography`](https://pub.dev/packages/cryptography) 2.9.0 |
+| Derivación de clave | Argon2id (v1.3), **64 MiB de memoria, 3 pasadas, 4 carriles**, sal aleatoria de 16 bytes, clave de 32 bytes (segunda configuración recomendada por RFC 9106). Se ejecuta en un *isolate* aparte. |
+| Nonce | 12 bytes aleatorios nuevos en **cada** guardado |
+| Qué se cifra | Todo el contenido: nombres, direcciones, usuarios, contraseñas, notas y fechas |
+| Cabecera | Formato, versión, parámetros de Argon2id, sal y nonce (en claro, necesarios para descifrar). Los parámetros se autentican como AAD: cualquier cambio hace fallar el descifrado. Se rechazan parámetros fuera de límites razonables. |
+| Contraseña maestra y clave | Nunca se guardan en disco, preferencias ni registros. La clave solo existe en memoria mientras la bóveda está abierta y se sobrescribe con ceros al bloquear. |
+| Contraseña incorrecta / archivo alterado | Falla la autenticación GCM y no se escribe nada. Un archivo dañado nunca se sobrescribe; la creación de una bóveda nueva se niega si ya existe una. |
+| Guardado atómico | Se escribe `vault.cassaforte.tmp`, se vuelca a disco (`flush`) y se renombra sobre el archivo final. Si algo falla, queda la versión anterior completa. |
+| Bloqueo y operaciones asíncronas | Cada bloqueo incrementa un contador de sesión. Un desbloqueo o creación en curso que termine después del bloqueo se descarta y la sesión sigue bloqueada. Un guardado en curso termina de escribirse (archivo completo y cifrado) pero no reabre la sesión. Los guardados se encadenan para que no se pisen. Al bloquear se cierran todas las pantallas y diálogos. |
+| Pantalla | `FLAG_SECURE`: sin capturas ni grabación, y contenido oculto en «Recientes». |
+| Copias de seguridad | `allowBackup="false"` y reglas que excluyen todo de la copia en la nube y de la transferencia entre dispositivos. |
+| Red | La versión release no tiene permiso `INTERNET` (se elimina explícitamente en el manifiesto release y el workflow lo comprueba en el APK). |
+| Teclado | Campos sin sugerencias, autocorrección ni aprendizaje personalizado (modo incógnito del teclado, si el teclado lo respeta). |
+| Portapapeles | El contenido se marca como sensible (Android 13+ no lo muestra en la vista previa). Para saber si sigue siendo nuestra copia se compara la marca de tiempo de la copia, sin leer el texto. |
+
+Formato del archivo (`files/vault.cassaforte`, en el directorio privado de la app):
+
+```json
+{
+  "format": "cassaforte-vault", "version": 1,
+  "kdf": {"algorithm": "argon2id", "version": 19, "memoryKiB": 65536,
+          "iterations": 3, "parallelism": 4, "salt": "<base64>"},
+  "cipher": {"algorithm": "aes-256-gcm", "nonce": "<base64>"},
+  "ciphertext": "<base64: texto cifrado || etiqueta>"
+}
+```
+
+### Limitaciones reales (sin promesas absolutas)
+
+- **Memoria:** mientras la bóveda está abierta, los datos descifrados están en la memoria del proceso. Dart no permite borrar de forma fiable las cadenas (`String`) ni controlar el recolector de basura, así que pueden quedar copias de contraseñas en memoria hasta que se reutilice. Malware con privilegios, un móvil rooteado o un volcado de memoria pueden leerlas.
+- **Portapapeles:** mientras una contraseña está copiada, el teclado, servicios de accesibilidad u otras apps con acceso pueden leerla. En Android 10+ una app en segundo plano no puede consultar el portapapeles: si a los 20 s Cassaforte no está en primer plano, el borrado se hace al volver a abrirla. Si el proceso termina antes, no se borra (Android 13+ lo borra solo al cabo de un tiempo). Algunos teclados guardan historial de portapapeles propio.
+- **Contraseña maestra débil:** quien obtenga el archivo cifrado puede intentar adivinarla sin límite de intentos; Argon2id solo lo encarece. Usa una frase larga.
+- **Metadatos:** el tamaño del archivo revela aproximadamente cuánto contenido hay.
+- **Dispositivo:** la seguridad depende del sistema Android (bloqueo de pantalla, cifrado del almacenamiento, ausencia de root/malware). No hay protección contra un atacante con acceso al móvil desbloqueado mientras la bóveda está abierta.
+- **Durabilidad:** el renombrado es atómico, pero Dart no permite sincronizar el directorio; un corte de energía justo en ese momento podría, en casos raros, dejar la versión anterior.
+- **Sin copia de seguridad:** a propósito, no hay exportación ni copia. Perder el móvil o desinstalar la app implica perder la bóveda.
+- Argon2id se ejecuta en Dart puro: en móviles lentos el desbloqueo puede tardar varios segundos.
+
+## Arquitectura
+
+```
+lib/
+  main.dart                       arranque
+  src/crypto/kdf.dart             Argon2id y parámetros
+  src/crypto/vault_cipher.dart    formato de archivo y AES-256-GCM
+  src/storage/vault_store.dart    escritura atómica en disco
+  src/model/vault_entry.dart      modelo de cuenta y serialización
+  src/session/vault_session.dart  estado, bloqueo, inactividad y concurrencia
+  src/security/                   generador y portapapeles
+  src/ui/                         pantallas y widgets
+android/app/src/main/kotlin/.../MainActivity.kt   FLAG_SECURE y portapapeles nativo
+```
+
+## Pruebas
+
+```bash
+flutter pub get
+flutter analyze
+flutter test
+```
+
+Las pruebas (44) cubren:
+
+- **Cifrado:** vector oficial de Argon2id (RFC 9106 §5.3), vector de AES-256-GCM, ida y vuelta, nonce distinto en cada cifrado, ausencia de texto en claro, clave incorrecta, alteración de cada byte del texto cifrado, del nonce y de los parámetros de la cabecera, formatos no válidos.
+- **Persistencia:** crear, guardar, editar, eliminar y reabrir desde disco; no sobrescribir una bóveda existente; escritura atómica cuando falla la escritura y con temporales huérfanos; un guardado fallido no altera el estado.
+- **Contraseña incorrecta y archivo alterado/dañado:** se rechazan sin escribir nada.
+- **Bloqueo de sesión:** bloqueo durante el desbloqueo, la creación y el guardado; guardados simultáneos; bloqueo por inactividad.
+- **Generador** y **portapapeles** (borrado, no borrar lo copiado después, reintento al volver a primer plano).
+- **Interfaz:** flujo completo (crear, añadir, buscar, contraseña oculta, bloqueo al pasar a segundo plano, contraseña incorrecta, confirmación al eliminar) y generador.
+
+## Compilación e instalación
+
+### APK desde GitHub Actions
+
+El workflow `.github/workflows/android.yml` se ejecuta manualmente (*Actions → Android APK → Run workflow*), al subir cambios a `main` (y a ramas `claude/**`) y en pull requests a `main`. Usa Flutter **3.47.6 (stable)** y Java 17, ejecuta `flutter pub get`, comprueba el formato, `flutter analyze` y `flutter test`, compila `flutter build apk --release`, verifica que el APK no pida permisos de red, muestra el certificado de firma y sube el APK como artefacto (30 días).
+
+Para instalarlo: descarga el artefacto (un `.zip`), extrae el `.apk` en el móvil y ábrelo permitiendo «instalar apps de origen desconocido».
+
+### Firma del APK (importante para no perder datos)
+
+- **Sin configurar nada**, el APK se firma con la **clave de depuración que genera cada ejecución** de GitHub Actions. Cada compilación tiene una firma distinta: Android **no permite actualizar** una app con otra firma, y habría que desinstalarla, **lo que borra la bóveda**. Úsalo solo para probar, sin datos reales.
+- **Para conservar tus datos entre versiones**, crea tu propia clave una sola vez y guárdala como secretos del repositorio (nunca en el código):
+
+```bash
+keytool -genkeypair -v -keystore cassaforte-release.jks -alias cassaforte \
+  -keyalg RSA -keysize 4096 -validity 10000
+base64 -w 0 cassaforte-release.jks > keystore.b64
+```
+
+En GitHub: *Settings → Secrets and variables → Actions → New repository secret*:
+
+| Secreto | Valor |
+|---|---|
+| `CASSAFORTE_KEYSTORE_BASE64` | contenido de `keystore.b64` |
+| `CASSAFORTE_KEYSTORE_PASSWORD` | contraseña del almacén |
+| `CASSAFORTE_KEY_ALIAS` | `cassaforte` |
+| `CASSAFORTE_KEY_PASSWORD` | contraseña de la clave (si es la misma, puede omitirse) |
+
+Guarda el `.jks` y sus contraseñas en un lugar seguro y fuera del repositorio: si los pierdes, no podrás publicar actualizaciones instalables sobre la versión existente. El resumen del workflow indica qué firma se usó y la huella SHA-256 del certificado; comprueba que sea siempre la misma. Si ya instalaste una versión con firma de depuración, tendrás que desinstalarla (y perder su bóveda) para pasar a la firma propia, así que configura la clave antes de guardar datos reales.
+
+### Compilar en local
+
+```bash
+flutter build apk --release
+# con clave propia:
+CASSAFORTE_KEYSTORE_PATH=/ruta/cassaforte-release.jks \
+CASSAFORTE_KEYSTORE_PASSWORD=... CASSAFORTE_KEY_ALIAS=cassaforte \
+CASSAFORTE_KEY_PASSWORD=... flutter build apk --release
+```
+
+## Estado de verificación
+
+**Hecho:**
+- `flutter analyze` sin problemas y `flutter test` con las 44 pruebas superadas, en Linux con Flutter 3.47.6.
+
+**Pendiente:**
+- Compilar el APK: no se ha hecho todavía. En el entorno de desarrollo no se pudo descargar el SDK de Android y GitHub Actions aún no se ha ejecutado, por lo que el código nativo Kotlin y la configuración de Gradle no se han compilado nunca.
+- Probar en un dispositivo Android real: `FLAG_SECURE`, bloqueo al pasar a segundo plano, borrado del portapapeles (incluido el caso en segundo plano), exclusión de copias de seguridad, tiempo de desbloqueo con Argon2id y que la app funcione sin red.
+- Hacer una revisión de seguridad independiente: el diseño usa primitivas estándar, pero no lo ha auditado un tercero.
+
+**Recomendación:** no guardes contraseñas reales hasta que el APK compile en Actions, hayas probado los puntos anteriores en tu móvil y configurado tu propia clave de firma. Aun así, conserva otra copia de las contraseñas críticas mientras ganas confianza en la app.
