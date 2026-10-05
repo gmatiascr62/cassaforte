@@ -70,7 +70,11 @@ lib/
   src/security/                   generador y portapapeles
   src/ui/                         pantallas y widgets
 android/app/src/main/kotlin/.../MainActivity.kt   FLAG_SECURE y portapapeles nativo
+branding/                       imágenes originales del icono y la pantalla de inicio
+tool/generate_branding.py       genera los iconos y la pantalla de inicio de Android
 ```
+
+Para cambiar el icono o la pantalla de inicio, sustituye las imágenes de `branding/` y ejecuta `python3 tool/generate_branding.py` (requiere Pillow). Se generan el icono adaptativo (con versión monocroma para iconos temáticos), el icono clásico y la pantalla de inicio para Android 12+ y anteriores.
 
 ## Pruebas
 
