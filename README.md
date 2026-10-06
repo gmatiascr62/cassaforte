@@ -7,7 +7,7 @@ Gestor de contraseñas para Android, personal y **totalmente local**: sin cuenta
 ## Funciones
 
 - Bóveda protegida por contraseña maestra (mínimo 10 caracteres, se pide dos veces y hay que aceptar el aviso de no recuperación).
-- Cuentas con **nombre**, **usuario** y **contraseña** (siempre al final). Con «Añadir campo» se agregan campos extra entre el usuario y la contraseña (p. ej., «Número de cliente» o un PIN), que pueden marcarse como ocultos. Las cuentas antiguas con dirección web o notas las conservan como campos extra al editarlas.
+- Cuentas con **nombre**, **usuario** y **contraseña** (siempre al final). El botón «Añadir campo» (debajo de la contraseña, junto a «Generar contraseña») pide el nombre del campo en una alerta y lo agrega vacío entre el usuario y la contraseña (p. ej., «Número de cliente» o un PIN, que puede marcarse como oculto). Las cuentas antiguas con dirección web o notas las conservan como campos extra al editarlas.
 - Añadir, consultar, editar, eliminar (con confirmación) y buscar (por nombre, dirección, usuario y notas).
 - Contraseñas ocultas por defecto, con botón para mostrarlas.
 - Generador de contraseñas con `Random.secure()` (CSPRNG del sistema): longitud de 8 a 64; minúsculas, mayúsculas, números y símbolos; opción para evitar caracteres ambiguos. Garantiza al menos un carácter de cada tipo elegido.

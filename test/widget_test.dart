@@ -427,30 +427,65 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(0), 'Banco');
     await tester.enterText(find.byType(TextFormField).at(1), 'juan');
 
-    // Dos campos extra: quedan entre el usuario y la contraseña.
+    // «Añadir campo» está a la derecha, debajo de la contraseña y encima de
+    // «Generar contraseña».
+    final addY = tester.getCenter(find.text('Añadir campo')).dy;
+    final genY = tester.getCenter(find.text('Generar contraseña')).dy;
+    expect(addY, lessThan(genY));
+
+    Future<void> addField(String name, {bool hidden = false}) async {
+      await tapVisible(tester, find.text('Añadir campo'));
+      await tester.pumpAndSettle();
+      expect(find.text('Nuevo campo'), findsOneWidget);
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextField),
+        ),
+        name,
+      );
+      if (hidden) await tester.tap(find.byType(Checkbox));
+      await tester.tap(find.widgetWithText(FilledButton, 'Añadir'));
+      await tester.pumpAndSettle();
+    }
+
+    // Sin nombre no se añade.
     await tapVisible(tester, find.text('Añadir campo'));
     await tester.pumpAndSettle();
-    await tapVisible(tester, find.text('Añadir campo'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Añadir'));
+    await tester.pump();
+    expect(find.text('Escribí un nombre.'), findsOneWidget);
+    await tester.tap(find.text('Cancelar'));
     await tester.pumpAndSettle();
+
+    await addField('Número de cliente');
+    await addField('PIN', hidden: true);
+
+    // Los campos nuevos aparecen vacíos, con su nombre, entre el usuario y
+    // la contraseña.
     var fields = find.byType(TextFormField);
-    expect(fields, findsNWidgets(7));
-    await tester.enterText(fields.at(2), 'Número de cliente');
-    await tester.enterText(fields.at(3), '12345');
-    await tester.enterText(fields.at(4), 'PIN');
-    await tester.enterText(fields.at(5), '9876');
-    await tester.enterText(fields.at(6), 'clave-final');
+    expect(fields, findsNWidgets(5));
+    String labelOf(int i) => tester
+        .widget<TextField>(
+          find.descendant(of: fields.at(i), matching: find.byType(TextField)),
+        )
+        .decoration!
+        .labelText!;
+    expect(
+      [for (var i = 0; i < 5; i++) labelOf(i)],
+      ['Nombre *', 'Usuario', 'Número de cliente', 'PIN', 'Contraseña *'],
+    );
+    await tester.enterText(fields.at(2), '12345');
+    await tester.enterText(fields.at(3), '9876');
+    await tester.enterText(fields.at(4), 'clave-final');
 
-    // El segundo campo extra se oculta como una contraseña.
-    await tapVisible(tester, find.text('Visible (tocá para ocultarlo)').last);
-    await tester.pumpAndSettle();
-
-    // Un campo vacío añadido y quitado no se guarda.
-    await tapVisible(tester, find.text('Añadir campo'));
-    await tester.pumpAndSettle();
-    await tapVisible(tester, find.byTooltip('Quitar campo').last);
+    // Un campo añadido y quitado (vacío) no se guarda.
+    await addField('Sobra');
+    expect(find.byType(TextFormField), findsNWidgets(6));
+    await tapVisible(tester, find.byTooltip('Quitar Sobra'));
     await tester.pumpAndSettle();
     fields = find.byType(TextFormField);
-    expect(fields, findsNWidgets(7));
+    expect(fields, findsNWidgets(5));
 
     await tapVisible(tester, find.widgetWithText(FilledButton, 'Guardar'));
     await tester.pumpAndSettle();
