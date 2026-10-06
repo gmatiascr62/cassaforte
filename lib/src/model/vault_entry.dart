@@ -2,6 +2,51 @@ import 'dart:convert';
 
 import '../crypto/kdf.dart';
 
+/// Campo adicional de una cuenta (p. ej., «Código de cliente»), entre el
+/// usuario y la contraseña.
+class CustomField {
+  const CustomField({
+    required this.label,
+    required this.value,
+    this.hidden = false,
+  });
+
+  final String label;
+  final String value;
+
+  /// Se muestra oculto como una contraseña (p. ej., un PIN).
+  final bool hidden;
+
+  Map<String, Object?> toJson() => {
+    'label': label,
+    'value': value,
+    'hidden': hidden,
+  };
+
+  factory CustomField.fromJson(Object? json) {
+    if (json is Map<String, Object?> &&
+        json['label'] is String &&
+        json['value'] is String) {
+      return CustomField(
+        label: json['label']! as String,
+        value: json['value']! as String,
+        hidden: json['hidden'] == true,
+      );
+    }
+    throw const FormatException('Campo adicional no válido');
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is CustomField &&
+      other.label == label &&
+      other.value == value &&
+      other.hidden == hidden;
+
+  @override
+  int get hashCode => Object.hash(label, value, hidden);
+}
+
 /// Una cuenta guardada en la bóveda. Todos sus campos se guardan cifrados.
 class VaultEntry {
   const VaultEntry({
@@ -13,6 +58,7 @@ class VaultEntry {
     required this.notes,
     required this.createdAt,
     required this.updatedAt,
+    this.fields = const [],
   });
 
   factory VaultEntry.create({
@@ -21,6 +67,7 @@ class VaultEntry {
     String username = '',
     required String password,
     String notes = '',
+    List<CustomField> fields = const [],
     DateTime? now,
   }) {
     final time = (now ?? DateTime.now()).toUtc();
@@ -33,6 +80,7 @@ class VaultEntry {
       notes: notes,
       createdAt: time,
       updatedAt: time,
+      fields: List.unmodifiable(fields),
     );
   }
 
@@ -45,6 +93,9 @@ class VaultEntry {
   final String username;
   final String password;
   final String notes;
+
+  /// Campos adicionales, en orden (van entre el usuario y la contraseña).
+  final List<CustomField> fields;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -54,6 +105,7 @@ class VaultEntry {
     String? username,
     String? password,
     String? notes,
+    List<CustomField>? fields,
     DateTime? updatedAt,
   }) {
     return VaultEntry(
@@ -63,6 +115,7 @@ class VaultEntry {
       username: username ?? this.username,
       password: password ?? this.password,
       notes: notes ?? this.notes,
+      fields: fields == null ? this.fields : List.unmodifiable(fields),
       createdAt: createdAt,
       updatedAt: (updatedAt ?? DateTime.now()).toUtc(),
     );
@@ -76,7 +129,12 @@ class VaultEntry {
     return title.toLowerCase().contains(q) ||
         url.toLowerCase().contains(q) ||
         username.toLowerCase().contains(q) ||
-        notes.toLowerCase().contains(q);
+        notes.toLowerCase().contains(q) ||
+        fields.any(
+          (f) =>
+              f.label.toLowerCase().contains(q) ||
+              (!f.hidden && f.value.toLowerCase().contains(q)),
+        );
   }
 
   Map<String, Object?> toJson() => {
@@ -86,6 +144,7 @@ class VaultEntry {
     'username': username,
     'password': password,
     'notes': notes,
+    'fields': [for (final f in fields) f.toJson()],
     'createdAt': createdAt.millisecondsSinceEpoch,
     'updatedAt': updatedAt.millisecondsSinceEpoch,
   };
@@ -114,6 +173,13 @@ class VaultEntry {
       notes: str('notes'),
       createdAt: time('createdAt'),
       updatedAt: time('updatedAt'),
+      fields: switch (json['fields']) {
+        null => const [],
+        final List<Object?> list => List.unmodifiable(
+          list.map(CustomField.fromJson),
+        ),
+        _ => throw const FormatException('Campo "fields" no válido'),
+      },
     );
   }
 

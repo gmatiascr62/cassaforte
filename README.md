@@ -7,7 +7,7 @@ Gestor de contraseñas para Android, personal y **totalmente local**: sin cuenta
 ## Funciones
 
 - Bóveda protegida por contraseña maestra (mínimo 10 caracteres, se pide dos veces y hay que aceptar el aviso de no recuperación).
-- Cuentas con nombre de la página, dirección web, usuario o correo, contraseña y notas opcionales.
+- Cuentas con **nombre**, **usuario** y **contraseña** (siempre al final). Con «Añadir campo» se agregan campos extra entre el usuario y la contraseña (p. ej., «Número de cliente» o un PIN), que pueden marcarse como ocultos. Las cuentas antiguas con dirección web o notas las conservan como campos extra al editarlas.
 - Añadir, consultar, editar, eliminar (con confirmación) y buscar (por nombre, dirección, usuario y notas).
 - Contraseñas ocultas por defecto, con botón para mostrarlas.
 - Generador de contraseñas con `Random.secure()` (CSPRNG del sistema): longitud de 8 a 64; minúsculas, mayúsculas, números y símbolos; opción para evitar caracteres ambiguos. Garantiza al menos un carácter de cada tipo elegido.
@@ -93,7 +93,7 @@ flutter analyze
 flutter test
 ```
 
-Las pruebas (64) cubren:
+Las pruebas (70) cubren:
 
 - **Cifrado:** vector oficial de Argon2id (RFC 9106 §5.3), vector de AES-256-GCM, ida y vuelta, nonce distinto en cada cifrado, ausencia de texto en claro, clave incorrecta, alteración de cada byte del texto cifrado, del nonce y de los parámetros de la cabecera, formatos no válidos.
 - **Persistencia:** crear, guardar, editar, eliminar y reabrir desde disco; no sobrescribir una bóveda existente; escritura atómica cuando falla la escritura y con temporales huérfanos; un guardado fallido no altera el estado.
@@ -102,7 +102,7 @@ Las pruebas (64) cubren:
 - **Generador** y **portapapeles** (borrado, no borrar lo copiado después, reintento al volver a primer plano).
 - **Copias:** exportar exige la maestra, abrir con contraseña incorrecta o archivo alterado falla, restaurar en un teléfono nuevo, no sobrescribir, fusionar (gana la versión más reciente) y reemplazar.
 - **Huella** (con un Keystore simulado): activar, desbloquear, cancelar, llave invalidada, clave que no corresponde a la bóveda, bloqueo durante el desbloqueo y desactivar.
-- **Interfaz:** flujo completo (crear, añadir, buscar, contraseña oculta, bloqueo al pasar a segundo plano, contraseña incorrecta, confirmación al eliminar), conservar un formulario a medio completar tras bloquear, generador, y restaurar/exportar copias.
+- **Interfaz:** flujo completo (crear, añadir, buscar, contraseña oculta, bloqueo al pasar a segundo plano, contraseña incorrecta, confirmación al eliminar), conservar un formulario a medio completar tras bloquear, campos adicionales (orden, ocultos, quitar, conversión de cuentas antiguas), generador, y restaurar/exportar copias.
 
 ## Compilación e instalación
 

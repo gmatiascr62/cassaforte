@@ -19,12 +19,24 @@ class EntryDetailScreen extends StatefulWidget {
 class _EntryDetailScreenState extends State<EntryDetailScreen> {
   bool _visible = false;
 
+  /// Campos adicionales ocultos que el usuario decidió mostrar.
+  final Set<int> _revealed = {};
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Al bloquearse la bóveda, la contraseña vuelve a ocultarse.
-    if (!AppScope.of(context).session.isUnlocked) _visible = false;
+    // Al bloquearse la bóveda, todo vuelve a ocultarse.
+    if (!AppScope.of(context).session.isUnlocked) {
+      _visible = false;
+      _revealed.clear();
+    }
   }
+
+  Widget _copyButton(String value, String tooltip, String what) => IconButton(
+    tooltip: tooltip,
+    icon: const Icon(Icons.copy),
+    onPressed: () => copySecret(context, value, what: what),
+  );
 
   Future<void> _edit(VaultEntry entry) async {
     await Navigator.of(context).push(
@@ -105,23 +117,59 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
             CenteredBody(
               child: Column(
                 children: [
-                  _Field(label: 'Página', value: entry.title),
-                  if (entry.url.isNotEmpty)
-                    _Field(label: 'Dirección web', value: entry.url),
+                  _Field(label: 'Nombre', value: entry.title),
                   if (entry.username.isNotEmpty)
                     _Field(
-                      label: 'Usuario o correo',
+                      label: 'Usuario',
                       value: entry.username,
-                      trailing: IconButton(
-                        tooltip: 'Copiar usuario',
-                        icon: const Icon(Icons.copy),
-                        onPressed: () => copySecret(
-                          context,
-                          entry.username,
-                          what: 'Usuario copiado',
-                        ),
+                      trailing: _copyButton(
+                        entry.username,
+                        'Copiar usuario',
+                        'Usuario copiado',
                       ),
                     ),
+                  // Cuentas guardadas con versiones anteriores.
+                  if (entry.url.isNotEmpty)
+                    _Field(label: 'Dirección web', value: entry.url),
+                  for (final (i, field) in entry.fields.indexed)
+                    _Field(
+                      label: field.label,
+                      value: field.hidden && !_revealed.contains(i)
+                          ? '••••••••'
+                          : field.value,
+                      monospace: field.hidden && _revealed.contains(i),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (field.hidden)
+                            IconButton(
+                              tooltip: _revealed.contains(i)
+                                  ? 'Ocultar ${field.label}'
+                                  : 'Mostrar ${field.label}',
+                              icon: Icon(
+                                _revealed.contains(i)
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                              ),
+                              onPressed: () {
+                                AppScope.read(context).session
+                                    .registerActivity();
+                                setState(() {
+                                  if (!_revealed.remove(i)) _revealed.add(i);
+                                });
+                              },
+                            ),
+                          _copyButton(
+                            field.value,
+                            'Copiar ${field.label}',
+                            '${field.label}: copiado',
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (entry.notes.isNotEmpty)
+                    _Field(label: 'Notas', value: entry.notes),
+                  // La contraseña siempre va al final.
                   _Field(
                     label: 'Contraseña',
                     value: _visible ? entry.password : '••••••••••••',
@@ -144,8 +192,6 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                       ],
                     ),
                   ),
-                  if (entry.notes.isNotEmpty)
-                    _Field(label: 'Notas', value: entry.notes),
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Text(

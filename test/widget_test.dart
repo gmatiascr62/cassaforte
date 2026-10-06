@@ -91,9 +91,10 @@ void main() {
     await tester.pumpAndSettle();
     final form = find.byType(TextFormField);
     await tester.enterText(form.at(0), 'Correo');
-    await tester.enterText(form.at(1), 'https://correo.example');
-    await tester.enterText(form.at(2), 'yo@example.com');
-    await tester.enterText(form.at(3), 'S3creta!');
+    // Formulario: nombre, usuario y contraseña (al final).
+    expect(form, findsNWidgets(3));
+    await tester.enterText(form.at(1), 'yo@example.com');
+    await tester.enterText(form.at(2), 'S3creta!');
     await tapVisible(tester, find.widgetWithText(FilledButton, 'Guardar'));
     await tester.pumpAndSettle();
     expect(find.text('Correo'), findsOneWidget);
@@ -196,7 +197,7 @@ void main() {
 
     final passwordField = tester.widget<EditableText>(
       find.descendant(
-        of: find.byType(TextFormField).at(3),
+        of: find.byType(TextFormField).at(2),
         matching: find.byType(EditableText),
       ),
     );
@@ -375,7 +376,7 @@ void main() {
     await tester.pumpAndSettle();
     final form = find.byType(TextFormField);
     await tester.enterText(form.at(0), 'Mi banco');
-    await tester.enterText(form.at(3), 'a-medias');
+    await tester.enterText(form.at(2), 'a-medias');
 
     // Salir a otra aplicación bloquea la bóveda.
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
@@ -400,7 +401,7 @@ void main() {
     expect(find.text('Nueva cuenta'), findsOneWidget);
     expect(find.text('Mi banco'), findsOneWidget);
     await tester.enterText(
-      find.byType(TextFormField).at(2),
+      find.byType(TextFormField).at(1),
       'yo@banco.example',
     );
     await tapVisible(tester, find.widgetWithText(FilledButton, 'Guardar'));
@@ -409,6 +410,132 @@ void main() {
     expect(saved.title, 'Mi banco');
     expect(saved.password, 'a-medias');
     expect(saved.username, 'yo@banco.example');
+
+    session.lock();
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('campos adicionales entre el usuario y la contraseña', (
+    tester,
+  ) async {
+    final platform = FakeBiometricPlatform()
+      ..status = BiometricAvailability.unsupported;
+    final session = await openVaultWith(tester, platform);
+
+    await tester.tap(find.text('Añadir'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), 'Banco');
+    await tester.enterText(find.byType(TextFormField).at(1), 'juan');
+
+    // Dos campos extra: quedan entre el usuario y la contraseña.
+    await tapVisible(tester, find.text('Añadir campo'));
+    await tester.pumpAndSettle();
+    await tapVisible(tester, find.text('Añadir campo'));
+    await tester.pumpAndSettle();
+    var fields = find.byType(TextFormField);
+    expect(fields, findsNWidgets(7));
+    await tester.enterText(fields.at(2), 'Número de cliente');
+    await tester.enterText(fields.at(3), '12345');
+    await tester.enterText(fields.at(4), 'PIN');
+    await tester.enterText(fields.at(5), '9876');
+    await tester.enterText(fields.at(6), 'clave-final');
+
+    // El segundo campo extra se oculta como una contraseña.
+    await tapVisible(tester, find.text('Visible (tocá para ocultarlo)').last);
+    await tester.pumpAndSettle();
+
+    // Un campo vacío añadido y quitado no se guarda.
+    await tapVisible(tester, find.text('Añadir campo'));
+    await tester.pumpAndSettle();
+    await tapVisible(tester, find.byTooltip('Quitar campo').last);
+    await tester.pumpAndSettle();
+    fields = find.byType(TextFormField);
+    expect(fields, findsNWidgets(7));
+
+    await tapVisible(tester, find.widgetWithText(FilledButton, 'Guardar'));
+    await tester.pumpAndSettle();
+    final saved = session.entries.single;
+    expect(saved.username, 'juan');
+    expect(saved.password, 'clave-final');
+    expect(saved.fields, const [
+      CustomField(label: 'Número de cliente', value: '12345'),
+      CustomField(label: 'PIN', value: '9876', hidden: true),
+    ]);
+
+    // En el detalle: el PIN oculto y la contraseña al final.
+    await tester.tap(find.text('Banco'));
+    await tester.pumpAndSettle();
+    expect(find.text('12345'), findsOneWidget);
+    expect(find.text('9876'), findsNothing);
+    final labels = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((t) => t.data)
+        .where(
+          (t) => const [
+            'Nombre',
+            'Usuario',
+            'Número de cliente',
+            'PIN',
+            'Contraseña',
+          ].contains(t),
+        )
+        .toList();
+    expect(labels, [
+      'Nombre',
+      'Usuario',
+      'Número de cliente',
+      'PIN',
+      'Contraseña',
+    ]);
+    await tester.tap(find.byTooltip('Mostrar PIN'));
+    await tester.pump();
+    expect(find.text('9876'), findsOneWidget);
+
+    // Sigue igual tras bloquear y volver a abrir desde el archivo.
+    session.lock();
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'contraseña maestra 1');
+    await tapVisible(tester, find.widgetWithText(FilledButton, 'Desbloquear'));
+    await tester.pumpAndSettle();
+    expect(session.entries.single.fields, hasLength(2));
+    expect(find.text('9876'), findsNothing); // se vuelve a ocultar
+
+    session.lock();
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('editar una cuenta antigua conserva su dirección y sus notas', (
+    tester,
+  ) async {
+    final platform = FakeBiometricPlatform()
+      ..status = BiometricAvailability.unsupported;
+    final session = await openVaultWith(tester, platform);
+    final old = VaultEntry.create(
+      title: 'Correo',
+      url: 'https://correo.example',
+      username: 'yo',
+      password: 'x',
+      notes: 'nota vieja',
+    );
+    await session.saveEntry(old);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Correo'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Editar'));
+    await tester.pumpAndSettle();
+    expect(find.text('https://correo.example'), findsOneWidget);
+    expect(find.text('nota vieja'), findsOneWidget);
+    await tapVisible(tester, find.widgetWithText(FilledButton, 'Guardar'));
+    await tester.pumpAndSettle();
+
+    final saved = session.entryById(old.id)!;
+    expect(saved.url, isEmpty);
+    expect(saved.notes, isEmpty);
+    expect(saved.fields, const [
+      CustomField(label: 'Dirección web', value: 'https://correo.example'),
+      CustomField(label: 'Notas', value: 'nota vieja'),
+    ]);
 
     session.lock();
     await tester.pump(const Duration(seconds: 5));
