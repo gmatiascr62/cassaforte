@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../legal/terms.dart';
 import '../security/biometric_unlock.dart';
 import '../security/clipboard_guard.dart';
 import '../security/password_generator.dart';
@@ -19,6 +20,7 @@ class AppScope extends InheritedNotifier<VaultSession> {
     required this.backupFiles,
     required this.externalUi,
     required this.pending,
+    required this.terms,
     required super.child,
   }) : super(notifier: session);
 
@@ -28,6 +30,7 @@ class AppScope extends InheritedNotifier<VaultSession> {
   final BackupFiles backupFiles;
   final ExternalUiGuard externalUi;
   final PendingPrompts pending;
+  final TermsAcceptance terms;
 
   /// Ejecuta una pantalla del sistema (huella, selector de archivos) sin
   /// que el paso a segundo plano bloquee la bóveda.

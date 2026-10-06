@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'src/legal/terms.dart';
 import 'src/security/biometric_unlock.dart';
 import 'src/security/clipboard_guard.dart';
 import 'src/session/vault_session.dart';
@@ -26,6 +27,7 @@ Future<void> main() async {
       session: session,
       clipboard: ClipboardGuard(),
       biometric: biometric,
+      terms: TermsAcceptance(FileVaultStore('${dir.path}/terms.json')),
     ),
   );
   unawaited(session.initialize());

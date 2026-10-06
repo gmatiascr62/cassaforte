@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:cassaforte/src/crypto/kdf.dart';
 import 'package:cassaforte/src/crypto/vault_cipher.dart';
+import 'package:cassaforte/src/legal/terms.dart';
 import 'package:cassaforte/src/model/vault_entry.dart';
 import 'package:cassaforte/src/security/biometric_unlock.dart';
 import 'package:cassaforte/src/security/clipboard_guard.dart';
@@ -27,6 +28,12 @@ class FakeKdf implements KeyDerivation {
   }
 }
 
+Future<TermsAcceptance> acceptedTerms() async {
+  final terms = TermsAcceptance(MemoryVaultStore());
+  await terms.accept();
+  return terms;
+}
+
 Future<void> tapVisible(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
@@ -44,6 +51,7 @@ void main() {
       newKdfParams: fastKdfParams,
     );
     final clipboard = ClipboardGuard(clipboard: FakeClipboard());
+    final terms = TermsAcceptance(MemoryVaultStore());
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpWidget(
       CassaforteApp(
@@ -55,6 +63,7 @@ void main() {
             ..status = BiometricAvailability.unsupported,
         ),
         backupFiles: FakeBackupFiles(),
+        terms: terms,
       ),
     );
     await session.initialize();
@@ -80,10 +89,26 @@ void main() {
     );
     expect(store.bytes, isNull);
 
-    await tapVisible(tester, find.byType(Checkbox));
+    // Aviso aceptado, pero faltan los Términos de uso.
+    await tapVisible(tester, find.byType(Checkbox).at(0));
+    await tapVisible(tester, find.widgetWithText(FilledButton, 'Crear bóveda'));
+    await tester.pumpAndSettle();
+    expect(find.text('Debes aceptar los Términos de uso.'), findsOneWidget);
+    expect(store.bytes, isNull);
+    expect(await terms.isAccepted(), isFalse);
+
+    // Se pueden leer desde la misma pantalla.
+    await tapVisible(tester, find.text('Leer los Términos de uso'));
+    await tester.pumpAndSettle();
+    expect(find.text('6. Limitación de responsabilidad'), findsOneWidget);
+    tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+    await tester.pumpAndSettle();
+
+    await tapVisible(tester, find.byType(Checkbox).at(1));
     await tapVisible(tester, find.widgetWithText(FilledButton, 'Crear bóveda'));
     await tester.pumpAndSettle();
     expect(session.status, VaultStatus.unlocked);
+    expect(await terms.isAccepted(), isTrue);
     expect(find.textContaining('Aún no hay cuentas'), findsOneWidget);
 
     // Añadir una cuenta.
@@ -181,6 +206,7 @@ void main() {
             ..status = BiometricAvailability.unsupported,
         ),
         backupFiles: FakeBackupFiles(),
+        terms: await acceptedTerms(),
       ),
     );
     await session.initialize();
@@ -240,11 +266,13 @@ void main() {
             ..status = BiometricAvailability.unsupported,
         ),
         backupFiles: files,
+        terms: await acceptedTerms(),
       ),
     );
     await session.initialize();
     await tester.pumpAndSettle();
 
+    await tapVisible(tester, find.byType(Checkbox).at(1));
     await tapVisible(tester, find.text('Restaurar copia de seguridad'));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -299,6 +327,7 @@ void main() {
           platform: platform,
         ),
         backupFiles: FakeBackupFiles(),
+        terms: await acceptedTerms(),
       ),
     );
     await session.initialize();
@@ -571,6 +600,85 @@ void main() {
       CustomField(label: 'Dirección web', value: 'https://correo.example'),
       CustomField(label: 'Notas', value: 'nota vieja'),
     ]);
+
+    session.lock();
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('una bóveda existente pide aceptar los términos al abrirla', (
+    tester,
+  ) async {
+    final store = MemoryVaultStore();
+    final terms = TermsAcceptance(MemoryVaultStore());
+    final previous = VaultSession(
+      store: store,
+      cipher: VaultCipher(keyDerivation: FakeKdf()),
+      newKdfParams: fastKdfParams,
+    );
+    await previous.initialize();
+    await previous.create('contraseña maestra 1');
+    previous.dispose();
+
+    final session = VaultSession(
+      store: store,
+      cipher: VaultCipher(keyDerivation: FakeKdf()),
+      newKdfParams: fastKdfParams,
+    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpWidget(
+      CassaforteApp(
+        session: session,
+        clipboard: ClipboardGuard(clipboard: FakeClipboard()),
+        biometric: BiometricUnlock(
+          store: MemoryVaultStore(),
+          platform: FakeBiometricPlatform()
+            ..status = BiometricAvailability.unsupported,
+        ),
+        backupFiles: FakeBackupFiles(),
+        terms: terms,
+      ),
+    );
+    await session.initialize();
+    await tester.pumpAndSettle();
+
+    Future<void> unlock() async {
+      await tester.enterText(
+        find.byType(TextFormField),
+        'contraseña maestra 1',
+      );
+      await tapVisible(
+        tester,
+        find.widgetWithText(FilledButton, 'Desbloquear'),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    // Sin aceptar, no se puede usar: vuelve a bloquearse.
+    await unlock();
+    expect(find.text('Términos de uso'), findsOneWidget);
+    await tester.tap(find.text('No acepto'));
+    await tester.pumpAndSettle();
+    expect(session.status, VaultStatus.locked);
+    expect(await terms.isAccepted(), isFalse);
+
+    // Al aceptar, queda registrado y no se vuelve a pedir.
+    await unlock();
+    await tester.tap(find.text('Acepto'));
+    await tester.pumpAndSettle();
+    expect(session.status, VaultStatus.unlocked);
+    expect(await terms.isAccepted(), isTrue);
+
+    session.lock();
+    await tester.pumpAndSettle();
+    await unlock();
+    expect(find.text('No acepto'), findsNothing);
+
+    // Y se pueden leer desde Ajustes.
+    await tester.tap(find.byTooltip('Ajustes y copias'));
+    await tester.pumpAndSettle();
+    await tapVisible(tester, find.text('Términos de uso'));
+    await tester.pumpAndSettle();
+    expect(find.text('3. Uso «tal cual» y sin garantías'), findsOneWidget);
 
     session.lock();
     await tester.pump(const Duration(seconds: 5));

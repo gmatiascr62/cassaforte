@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import '../legal/terms.dart';
 import '../security/biometric_unlock.dart';
 import '../security/clipboard_guard.dart';
 import '../security/password_generator.dart';
@@ -20,6 +21,7 @@ class CassaforteApp extends StatefulWidget {
     required this.session,
     required this.clipboard,
     required this.biometric,
+    required this.terms,
     this.backupFiles = const MethodChannelBackupFiles(),
     PasswordGenerator? generator,
   }) : _generator = generator;
@@ -27,6 +29,7 @@ class CassaforteApp extends StatefulWidget {
   final VaultSession session;
   final ClipboardGuard clipboard;
   final BiometricUnlock biometric;
+  final TermsAcceptance terms;
   final BackupFiles backupFiles;
   final PasswordGenerator? _generator;
 
@@ -100,6 +103,7 @@ class _CassaforteAppState extends State<CassaforteApp> {
       backupFiles: widget.backupFiles,
       externalUi: _externalUi,
       pending: _pending,
+      terms: widget.terms,
       child: MaterialApp(
         navigatorKey: _navigatorKey,
         title: 'Cassaforte',

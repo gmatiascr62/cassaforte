@@ -5,6 +5,7 @@ import '../app_scope.dart';
 import '../vault_actions.dart';
 import '../widgets/common.dart';
 import 'security_info_screen.dart';
+import 'terms_screen.dart';
 
 /// Ajustes: desbloqueo con huella y copias de seguridad.
 class SettingsScreen extends StatefulWidget {
@@ -107,6 +108,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: () => importBackup(context),
                   ),
                   const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.gavel_outlined),
+                    title: const Text('Términos de uso'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const TermsScreen(),
+                      ),
+                    ),
+                  ),
                   ListTile(
                     leading: const Icon(Icons.info_outline),
                     title: const Text('Seguridad y limitaciones'),

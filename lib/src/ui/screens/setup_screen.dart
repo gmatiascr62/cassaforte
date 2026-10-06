@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../session/vault_session.dart';
 import '../app_scope.dart';
 import '../vault_actions.dart';
+import 'terms_screen.dart';
 import '../widgets/common.dart';
 
 /// Primera ejecución: crea la bóveda con una contraseña maestra confirmada.
@@ -19,6 +20,7 @@ class _SetupScreenState extends State<SetupScreen> {
   final _confirm = TextEditingController();
   bool _visible = false;
   bool _accepted = false;
+  bool _termsAccepted = false;
   String? _error;
 
   @override
@@ -37,9 +39,14 @@ class _SetupScreenState extends State<SetupScreen> {
       setState(() => _error = 'Debes confirmar que has leído el aviso.');
       return;
     }
+    if (!_termsAccepted) {
+      setState(() => _error = 'Debes aceptar los Términos de uso.');
+      return;
+    }
     final scope = AppScope.read(context);
     final session = scope.session;
     try {
+      await scope.terms.accept();
       // Una llave de huella de una bóveda anterior ya no sirve.
       await scope.biometric.disable();
       scope.pending.offerBiometric = true;
@@ -60,8 +67,17 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   Future<void> _restore() async {
+    if (!_termsAccepted) {
+      setState(
+        () => _error =
+            'Para restaurar una copia, primero aceptá los Términos de uso.',
+      );
+      return;
+    }
     setState(() => _error = null);
     final scope = AppScope.read(context);
+    await scope.terms.accept();
+    if (!mounted) return;
     scope.pending.offerBiometric = true;
     final error = await restoreBackup(context);
     if (error != null) scope.pending.offerBiometric = false;
@@ -147,6 +163,30 @@ class _SetupScreenState extends State<SetupScreen> {
                     title: const Text(
                       'Entiendo que si olvido la contraseña maestra o pierdo '
                       'los datos del móvil no podré recuperar la bóveda.',
+                    ),
+                  ),
+                  CheckboxListTile(
+                    value: _termsAccepted,
+                    onChanged: busy
+                        ? null
+                        : (v) => setState(() => _termsAccepted = v ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Leí y acepto los Términos de uso.'),
+                    subtitle: Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const TermsScreen(),
+                          ),
+                        ),
+                        child: const Text('Leer los Términos de uso'),
+                      ),
                     ),
                   ),
                   if (_error != null) ...[

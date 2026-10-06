@@ -9,6 +9,7 @@ import '../widgets/generator_sheet.dart';
 import 'entry_detail_screen.dart';
 import 'entry_form_screen.dart';
 import 'settings_screen.dart';
+import 'terms_screen.dart';
 
 /// Lista de cuentas con búsqueda.
 class VaultScreen extends StatefulWidget {
@@ -47,6 +48,9 @@ class _VaultScreenState extends State<VaultScreen> {
 
   Future<void> _showPending() async {
     if (!mounted || !(_session?.isUnlocked ?? false)) return;
+    // Bóvedas creadas antes de los Términos de uso (o con una versión
+    // anterior): hay que aceptarlos para seguir.
+    if (!await _ensureTermsAccepted() || !mounted) return;
     final pending = AppScope.read(context).pending;
     if (pending.reenableBiometric) {
       pending
@@ -62,6 +66,51 @@ class _VaultScreenState extends State<VaultScreen> {
       pending.offerBiometric = false;
       await offerBiometric(context);
     }
+  }
+
+  Future<bool> _ensureTermsAccepted() async {
+    final scope = AppScope.read(context);
+    if (await scope.terms.isAccepted()) return true;
+    if (!mounted) return false;
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          icon: const Icon(Icons.gavel_outlined),
+          title: const Text('Términos de uso'),
+          content: const Text(
+            'Para seguir usando Cassaforte, leé y aceptá los Términos de uso. '
+            'La app se ofrece gratis y «tal cual», y vos sos responsable de '
+            'la seguridad de tu teléfono, tu contraseña maestra y tus copias.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const TermsScreen()),
+              ),
+              child: const Text('Leer'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('No acepto'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Acepto'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (accepted == true) {
+      await scope.terms.accept();
+      return true;
+    }
+    // Sin aceptar no se puede usar: se vuelve a bloquear.
+    scope.session.lock();
+    return false;
   }
 
   @override

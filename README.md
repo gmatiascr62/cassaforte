@@ -15,6 +15,7 @@ Gestor de contraseñas para Android, personal y **totalmente local**: sin cuenta
 - Bloqueo al pasar a segundo plano y tras 2 minutos sin actividad.
 - **Desbloqueo con huella o con el patrón/PIN del teléfono** (Android 11+), opcional. La contraseña maestra se sigue pidiendo para las copias y si Android invalida la llave.
 - **Copias de seguridad cifradas**: exportar la bóveda a un archivo `.cassaforte` (donde elijas: Descargas, Drive, USB…) e importarla (fusionar o reemplazar) o restaurarla al empezar en un teléfono nuevo.
+- **Términos de uso** (`lib/src/legal/terms.dart`): hay que aceptarlos al crear la bóveda o restaurar una copia; las bóvedas existentes los piden una vez al abrirlas (si no se aceptan, la app se vuelve a bloquear). Se pueden leer en Ajustes. Se guarda solo la versión aceptada y la fecha, sin datos personales. Cambiar `termsVersion` vuelve a pedirlos. *No son asesoramiento legal: conviene que un abogado los revise antes de publicar la app.*
 - Interfaz en español, Material 3, tema claro/oscuro, adaptada a pantallas grandes.
 
 ## Diseño de seguridad
@@ -93,7 +94,7 @@ flutter analyze
 flutter test
 ```
 
-Las pruebas (70) cubren:
+Las pruebas (71) cubren:
 
 - **Cifrado:** vector oficial de Argon2id (RFC 9106 §5.3), vector de AES-256-GCM, ida y vuelta, nonce distinto en cada cifrado, ausencia de texto en claro, clave incorrecta, alteración de cada byte del texto cifrado, del nonce y de los parámetros de la cabecera, formatos no válidos.
 - **Persistencia:** crear, guardar, editar, eliminar y reabrir desde disco; no sobrescribir una bóveda existente; escritura atómica cuando falla la escritura y con temporales huérfanos; un guardado fallido no altera el estado.
@@ -102,7 +103,7 @@ Las pruebas (70) cubren:
 - **Generador** y **portapapeles** (borrado, no borrar lo copiado después, reintento al volver a primer plano).
 - **Copias:** exportar exige la maestra, abrir con contraseña incorrecta o archivo alterado falla, restaurar en un teléfono nuevo, no sobrescribir, fusionar (gana la versión más reciente) y reemplazar.
 - **Huella** (con un Keystore simulado): activar, desbloquear, cancelar, llave invalidada, clave que no corresponde a la bóveda, bloqueo durante el desbloqueo y desactivar.
-- **Interfaz:** flujo completo (crear, añadir, buscar, contraseña oculta, bloqueo al pasar a segundo plano, contraseña incorrecta, confirmación al eliminar), conservar un formulario a medio completar tras bloquear, campos adicionales (orden, ocultos, quitar, conversión de cuentas antiguas), generador, y restaurar/exportar copias.
+- **Interfaz:** flujo completo (crear, añadir, buscar, contraseña oculta, bloqueo al pasar a segundo plano, contraseña incorrecta, confirmación al eliminar), conservar un formulario a medio completar tras bloquear, campos adicionales (orden, ocultos, quitar, conversión de cuentas antiguas), generador, restaurar/exportar copias y aceptación de los Términos de uso.
 
 ## Compilación e instalación
 
