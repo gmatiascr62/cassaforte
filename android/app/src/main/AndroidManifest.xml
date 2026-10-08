@@ -6,10 +6,11 @@
     <!-- Cámara: solo para escanear los códigos QR de una copia de seguridad.
          Se pide en el momento de escanear. -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <!-- El paquete de cámara declara estos permisos para grabar vídeo; Cassaforte
-         no graba nada, así que se eliminan. -->
+    <!-- Las dependencias declaran estos permisos (vídeo, almacenamiento); Cassaforte
+         no graba nada y usa el selector de archivos del sistema: se eliminan. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
     <!-- La cámara es opcional: sin ella se puede recuperar eligiendo el PDF. -->
     <uses-feature
         android:name="android.hardware.camera.any"
