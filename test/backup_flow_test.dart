@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:cassaforte/src/backup/backup_pdf.dart';
 import 'package:cassaforte/src/backup/qr_backup_service.dart';
 import 'package:cassaforte/src/backup/qr_chunks.dart';
+import 'package:cassaforte/src/backup/qr_codes.dart';
 import 'package:cassaforte/src/backup/qr_image_reader.dart';
 import 'package:cassaforte/src/crypto/vault_cipher.dart';
 import 'package:cassaforte/src/legal/terms.dart';
@@ -16,7 +17,6 @@ import 'package:cassaforte/src/ui/cassaforte_app.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'backup_page_renderer.dart';
 import 'helpers.dart';
 
 const master = 'contraseña maestra 1';
@@ -148,7 +148,7 @@ void main() {
       // Teléfono nuevo, sin bóveda.
       final phone2 = Phone(tester, termsAccepted: false);
       phone2.files.toOpen = pdf;
-      phone2.raster.pages = renderPages(codes);
+      phone2.raster.codes = codes;
       await phone2.open();
       await tap(tester, find.byType(Checkbox)); // términos
       await tap(tester, find.text('Recuperar mis contraseñas'));
@@ -293,11 +293,14 @@ void main() {
     );
 
     // PDF con códigos faltantes: avisa y no pide contraseña.
+    // Como al exportar: códigos verificados y hojas dibujadas a la
+    // resolución que pida el lector (que relee a otra si falta alguno).
     final codes = QrChunk.split(
       await phone.backup.cipher.seal(accounts(40), master),
+      isReadable: isQrReadable,
     );
     expect(codes.length, greaterThan(1));
-    phone.raster.pages = renderPages(codes.sublist(0, codes.length - 1));
+    phone.raster.codes = codes.sublist(0, codes.length - 1);
     await tap(tester, find.text('Seleccionar archivo PDF'));
     expect(find.textContaining('Faltan 1 códigos'), findsOneWidget);
     expect(find.byType(AlertDialog), findsNothing);
@@ -317,7 +320,7 @@ void main() {
     final mine = VaultEntry.create(title: 'Solo mía', password: 'p');
     final phone2 = await phoneWithVault(tester, [mine]);
     phone2.files.toOpen = pdf;
-    phone2.raster.pages = renderPages(codes);
+    phone2.raster.codes = codes;
     await tap(tester, find.byTooltip('Ajustes y copias'));
     await tap(tester, find.text('Importar copia de seguridad'));
     await tap(tester, find.text('Seleccionar archivo PDF'));

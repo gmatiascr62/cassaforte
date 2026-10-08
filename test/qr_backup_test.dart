@@ -337,8 +337,12 @@ void main() {
         final entries = sampleAccounts(20);
         final codes = await exportCodes(entries);
         final assembler = BackupAssembler();
-        for (final page in renderPages(codes)) {
-          QrImageReader.readAll(page).forEach(assembler.add);
+        // Como readPdf: relee a otra resolución si falta algún código.
+        for (final dpi in const [150.0, 300.0]) {
+          for (final page in renderPages(codes, dpi: dpi)) {
+            QrImageReader.readAll(page).forEach(assembler.add);
+          }
+          if (assembler.isComplete) break;
         }
         expectSameEntries(
           await fastCipher().open(assembler.assemble(), master),
