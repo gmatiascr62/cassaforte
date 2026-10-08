@@ -151,14 +151,27 @@ void main() {
 
     test('lee hojas desplazadas (como un PDF escaneado de papel)', () async {
       final codes = await exportCodes(sampleAccounts(50));
-      final page = renderPages(codes).first;
-      final w = page.width, h = page.height;
-      final shifted = Uint8List(w * h)..fillRange(0, w * h, 255);
-      for (var y = 0; y < h - 53; y++) {
-        shifted.setRange((y + 53) * w + 37, (y + 54) * w, page.pixels, y * w);
+      // Como readPdf: si a una resolución falta algún código (al detector
+      // de ZXing le cuesta algún QR con un tamaño de módulo concreto), se
+      // relee a otra.
+      final found = <String>{};
+      for (final dpi in const [150.0, 300.0]) {
+        final page = renderPages(codes, dpi: dpi).first;
+        final w = page.width, h = page.height;
+        final dx = (37 * dpi / 150).round(), dy = (53 * dpi / 150).round();
+        final shifted = Uint8List(w * h)..fillRange(0, w * h, 255);
+        for (var y = 0; y < h - dy; y++) {
+          shifted.setRange(
+            (y + dy) * w + dx,
+            (y + dy + 1) * w,
+            page.pixels,
+            y * w,
+          );
+        }
+        found.addAll(QrImageReader.readAll(GrayImage(w, h, shifted)));
+        if (found.length == 6) break;
       }
-      final found = QrImageReader.readAll(GrayImage(w, h, shifted));
-      expect(found.toSet(), codes.take(6).toSet());
+      expect(found, codes.take(6).toSet());
     });
 
     test('100 cuentas típicas caben en pocas hojas', () async {

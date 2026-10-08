@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:zxing2/qrcode.dart';
 
+import 'qr_detector.dart';
 import 'qr_page_layout.dart';
 
 /// Imagen en escala de grises (1 byte por píxel).
@@ -108,7 +109,10 @@ class QrImageReader {
         );
         if (f != null) found.add(f.text);
       }
-      if (found.isNotEmpty) return found.toList();
+      // Todas las celdas leídas: listo. Si falta alguna (hoja desplazada,
+      // escaneada, o la última hoja, que puede no estar completa), se busca
+      // también en toda la hoja.
+      if (found.length == cells.length) return found.toList();
     }
     _multi(image, 0, 0, image.width, image.height, 0, found);
     if (found.isEmpty) {
@@ -136,6 +140,12 @@ class QrImageReader {
     if (fast) {
       return _decodeRegion(image, 0, 0, image.width, image.height)?.text;
     }
+    // Si no se lee, se prueba el otro binarizador de ZXing (umbral único
+    // para toda la imagen), que funciona mejor con algunas fotos borrosas.
+    return _readFrame(image) ?? _readFrame(image, global: true);
+  }
+
+  static String? _readFrame(GrayImage image, {bool global = false}) {
     // Primero el centro, donde suele apuntar el usuario.
     final cw = image.width * 3 ~/ 4;
     final ch = image.height * 3 ~/ 4;
@@ -145,8 +155,16 @@ class QrImageReader {
           (image.height - ch) ~/ 2,
           cw,
           ch,
+          global: global,
         )?.text ??
-        _decodeRegion(image, 0, 0, image.width, image.height)?.text;
+        _decodeRegion(
+          image,
+          0,
+          0,
+          image.width,
+          image.height,
+          global: global,
+        )?.text;
   }
 
   static void _multi(
@@ -176,6 +194,7 @@ class QrImageReader {
     int w,
     int h, {
     bool pure = false,
+    bool global = false,
   }) {
     x = x.clamp(0, image.width);
     y = y.clamp(0, image.height);
@@ -187,11 +206,18 @@ class QrImageReader {
       ..put(DecodeHintType.possibleFormats, [BarcodeFormat.qrCode]);
     if (pure) hints.put(DecodeHintType.pureBarcode);
     try {
-      final result = QRCodeReader().decode(
-        BinaryBitmap(HybridBinarizer(_GraySource(image, x, y, w, h))),
-        hints: hints,
+      final source = _GraySource(image, x, y, w, h);
+      final bitmap = BinaryBitmap(
+        global ? GlobalHistogramBinarizer(source) : HybridBinarizer(source),
       );
-      final points = result.resultPoints;
+      final ({String text, List<ResultPoint> points}) result;
+      if (pure) {
+        final r = QRCodeReader().decode(bitmap, hints: hints);
+        result = (text: r.text, points: r.resultPoints);
+      } else {
+        result = QrDetector.decode(bitmap.getBlackMatrix(), hints);
+      }
+      final points = result.points;
       var minX = w, minY = h, maxX = 0, maxY = 0;
       for (final p in points) {
         minX = p.x < minX ? p.x.floor() : minX;

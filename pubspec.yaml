@@ -19,7 +19,7 @@ dependencies:
   pdf: ^3.13.1
   printing: ^5.15.1
   qr: ^3.0.2
-  zxing2: ^0.2.4
+  zxing2: 0.2.4
   camera: ^0.12.1
 
 dev_dependencies:

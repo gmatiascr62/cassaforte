@@ -99,14 +99,14 @@ flutter analyze
 flutter test
 ```
 
-Las pruebas (101) cubren:
+Las pruebas (104) cubren:
 
 - **Cifrado:** vector oficial de Argon2id (RFC 9106 §5.3), vector de AES-256-GCM, ida y vuelta, nonce distinto en cada cifrado, ausencia de texto en claro, clave incorrecta, alteración de cada byte del texto cifrado, del nonce y de los parámetros de la cabecera, formatos no válidos.
 - **Persistencia:** crear, guardar, editar, eliminar y reabrir desde disco; no sobrescribir una bóveda existente; escritura atómica cuando falla la escritura y con temporales huérfanos; un guardado fallido no altera el estado.
 - **Contraseña incorrecta y archivo alterado/dañado:** se rechazan sin escribir nada.
 - **Bloqueo de sesión:** bloqueo durante el desbloqueo, la creación y el guardado; guardados simultáneos; bloqueo por inactividad.
 - **Generador** y **portapapeles** (borrado, no borrar lo copiado después, reintento al volver a primer plano).
-- **Copia en PDF con QR:** exportar y restaurar 1, 20, 50 y 100 cuentas leyendo los QR de las hojas (con relectura a otra resolución) y conservando exactamente nombre, URL, usuario, contraseña, notas, campos y fechas; 10 copias de 100 cuentas seguidas; QR desordenados y repetidos; códigos faltantes; códigos de otra copia; códigos ajenos o dañados; fragmento falsificado con suma de control válida; contraseña incorrecta; datos alterados; formatos y parámetros no válidos; bomba de compresión; ausencia de texto en claro en los QR y en el PDF; hojas desplazadas (PDF escaneado); restauración sin red (`HttpOverrides` que falla ante cualquier conexión); vectores de Base45 (RFC 9285). Interfaz: exportar → guardar/imprimir/compartir → recuperar en otro teléfono desde el PDF (con contraseña incorrecta primero), con la cámara (en desorden, repetidos, de otra copia y ajenos), sin permiso de cámara, archivos inválidos y faltantes, e importar dentro de la bóveda. Sesión: restauración atómica, sin bóveda parcial si falla la escritura y sin sobrescribir.
+- **Copia en PDF con QR:** exportar y restaurar 1, 20, 50 y 100 cuentas leyendo los QR de las hojas (con relectura a otra resolución) y conservando exactamente nombre, URL, usuario, contraseña, notas, campos y fechas; 10 copias de 100 cuentas seguidas; QR desordenados y repetidos; códigos faltantes; códigos de otra copia; códigos ajenos o dañados; fragmento falsificado con suma de control válida; contraseña incorrecta; datos alterados; formatos y parámetros no válidos; bomba de compresión; ausencia de texto en claro en los QR y en el PDF; hojas desplazadas (PDF escaneado); restauración sin red (`HttpOverrides` que falla ante cualquier conexión); vectores de Base45 (RFC 9285); lectura con la cámara de fotogramas simulados (de frente, girados, en trapecio, de costado, con luz despareja, desenfoque y ruido), con un 95 % como mínimo, sin devolver nunca un texto distinto del código, y una prueba que documenta que `zxing2` sin las correcciones falla en esos fotogramas. Interfaz: exportar → guardar/imprimir/compartir → recuperar en otro teléfono desde el PDF (con contraseña incorrecta primero), con la cámara (en desorden, repetidos, de otra copia y ajenos), sin permiso de cámara, archivos inválidos y faltantes, e importar dentro de la bóveda. Sesión: restauración atómica, sin bóveda parcial si falla la escritura y sin sobrescribir.
 - **Copias `.cassaforte` anteriores:** exportar exige la maestra, abrir con contraseña incorrecta o archivo alterado falla, restaurar en un teléfono nuevo, no sobrescribir, fusionar (gana la versión más reciente) y reemplazar.
 - **Huella** (con un Keystore simulado): activar, desbloquear, cancelar, llave invalidada, clave que no corresponde a la bóveda, bloqueo durante el desbloqueo y desactivar.
 - **Interfaz:** flujo completo (crear, añadir, buscar, contraseña oculta, bloqueo al pasar a segundo plano, contraseña incorrecta, confirmación al eliminar), conservar un formulario a medio completar tras bloquear, campos adicionales (orden, ocultos, quitar, conversión de cuentas antiguas), generador, restaurar/exportar copias y aceptación de los Términos de uso.
@@ -127,7 +127,29 @@ Formato (versión 1):
 6. Al leer, los fragmentos se juntan en cualquier orden. Se rechazan los de otra copia, los dañados y los que contradicen a uno ya leído. Al final se comprueba que el SHA-256 de lo reconstruido coincide con el identificador **antes** de pedir la contraseña, y después GCM verifica todo.
 7. Límites contra archivos maliciosos: PDF ≤ 30 MB y ≤ 100 hojas; copia cifrada ≤ 1 MiB; datos descomprimidos ≤ 16 MiB; ≤ 2000 fragmentos; parámetros de Argon2id acotados.
 
-La lectura de QR (desde el PDF y desde la cámara) se hace en Dart con `zxing2`, en otro isolate y sin conexión. Las hojas del PDF se rasterizan con el renderizador de Android (`PdfRenderer`, vía `printing`) a 200 ppp; si faltan códigos se vuelven a leer a 300 y 150 ppp. En cada hoja se busca primero en la posición conocida de cada QR (también como «código puro») y, si no, en toda la hoja (para PDF escaneados de papel).
+La lectura de QR (desde el PDF y desde la cámara) se hace en Dart con `zxing2`, en otro isolate y sin conexión. Las hojas del PDF se rasterizan con el renderizador de Android (`PdfRenderer`, vía `printing`) a 200 ppp; si faltan códigos se vuelven a leer a 300 y 150 ppp. En cada hoja se busca primero en la posición conocida de cada QR (también como «código puro»). Si falta alguno, también se busca en toda la hoja (para PDF escaneados de papel).
+
+**Detector para la cámara (`lib/src/backup/qr_detector.dart`).** Con el detector de `zxing2` tal cual (igual que ZXing en Java), la app no reconocía los QR con la cámara aunque el lector de QR de Android sí: falla en cuanto la foto está algo inclinada, que es lo normal. Las causas:
+
+- Para elegir las tres esquinas compara triángulos de candidatos por su deformación **en píxeles**. Un triángulo diminuto de ruido gana así al triángulo real, grande y algo deformado.
+- Calcula dónde está el patrón de alineación de abajo a la derecha como si el código fuera un paralelogramo. Con la hoja en perspectiva (un trapecio) se equivoca por varios módulos y toma otro patrón interior.
+- Con el código girado cerca de 45°, el buscador de patrones de alineación (que mide tramos horizontales) no los encuentra.
+- Estima mal el tamaño del código en módulos cuando un lado se ve más corto que el otro.
+
+Cassaforte prueba primero lo mismo que `zxing2` y, si falla, prueba varias hipótesis:
+
+- triángulos elegidos por deformación proporcional al tamaño;
+- varios tamaños posibles del código;
+- patrones de alineación buscados con el tamaño de módulo aparente según el giro, probando a qué posición de la cuadrícula corresponde cada uno.
+
+Cada hipótesis se valida decodificando: la corrección de errores Reed-Solomon del QR y, después, la suma de control de cada fragmento rechazan las equivocadas.
+
+Mediciones con fotogramas simulados (de frente, girados, en perspectiva, con luz despareja, desenfoque y ruido):
+
+- `zxing2` solo: 277 de 480 (58 %), y ninguno con el código girado y en perspectiva a la vez.
+- Con el detector de Cassaforte: 470 de 480 (98 %), sin ningún texto erróneo.
+
+Con una foto real de una hoja impresa, `zxing2` solo no leía el código a ninguna resolución. Con el detector nuevo se lee a 1080, 720 y 480 px de ancho; a 1500 px no lo leyó (ZXing-C++, que se usó como referencia, tampoco). Esa foto no está en el repositorio porque contiene una copia (cifrada) real. El detector usa clases internas de `zxing2`, por eso la versión queda fijada (`zxing2: 0.2.4`).
 
 ### Prueba manual de la copia (pendiente en un teléfono real)
 
