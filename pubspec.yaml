@@ -16,6 +16,11 @@ dependencies:
   cryptography: ^2.9.0
   # Ruta del directorio privado de la aplicación.
   path_provider: ^2.1.6
+  pdf: ^3.13.1
+  printing: ^5.15.1
+  qr: ^3.0.2
+  zxing2: ^0.2.4
+  camera: ^0.12.1
 
 dev_dependencies:
   flutter_test:

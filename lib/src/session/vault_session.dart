@@ -216,6 +216,17 @@ class VaultSession extends ChangeNotifier {
     }
   }
 
+  /// ¿Es un archivo de bóveda (o copia `.cassaforte`) con formato válido?
+  /// No comprueba la contraseña.
+  bool isVaultFile(Uint8List bytes) {
+    try {
+      _cipher.readHeader(bytes);
+      return true;
+    } on VaultFormatException {
+      return false;
+    }
+  }
+
   /// Primera ejecución: restaura una copia de seguridad como bóveda nueva.
   /// La contraseña maestra pasa a ser la de la copia. Nunca sobrescribe una
   /// bóveda existente.
@@ -283,6 +294,67 @@ class VaultSession extends ChangeNotifier {
     } finally {
       _wipe(keyCopy);
       _wipe(derived);
+    }
+  }
+
+  /// Comprueba la contraseña maestra y devuelve las cuentas actuales, para
+  /// crear una copia de seguridad cifrada con esa contraseña.
+  Future<List<VaultEntry>> confirmMasterPassword(String masterPassword) async {
+    await exportBackup(masterPassword);
+    if (_status != VaultStatus.unlocked) throw const VaultLockedException();
+    return _entries;
+  }
+
+  /// Primera ejecución: crea la bóveda con las cuentas recuperadas de una
+  /// copia de seguridad. La contraseña maestra pasa a ser la de la copia.
+  /// Todo o nada: se escribe un único archivo de forma atómica y nunca se
+  /// sobrescribe una bóveda existente.
+  Future<void> restoreEntries(
+    List<VaultEntry> entries,
+    String masterPassword,
+  ) async {
+    if (_status != VaultStatus.needsSetup || isBusy) {
+      throw StateError('No se puede restaurar ahora');
+    }
+    final epoch = _epoch;
+    _busyEpoch = epoch;
+    _notify();
+    Uint8List? key;
+    try {
+      await _queue;
+      if (await _store.exists()) {
+        _status = VaultStatus.locked;
+        throw const VaultAlreadyExistsException();
+      }
+      final kdf = _newKdfParams();
+      key = await _cipher.deriveKey(masterPassword, kdf);
+      final sorted = _sorted(entries);
+      final plain = Uint8List.fromList(VaultContents.encode(sorted));
+      final Uint8List bytes;
+      try {
+        bytes = await _cipher.seal(plaintext: plain, key: key, kdf: kdf);
+      } finally {
+        _wipe(plain);
+      }
+      if (await _store.exists()) {
+        _status = VaultStatus.locked;
+        throw const VaultAlreadyExistsException();
+      }
+      await _store.writeAtomic(bytes);
+      if (epoch != _epoch) {
+        _status = VaultStatus.locked;
+        throw const VaultLockedException();
+      }
+      _key = key;
+      key = null;
+      _kdf = kdf;
+      _entries = sorted;
+      _status = VaultStatus.unlocked;
+      _restartIdleTimer();
+    } finally {
+      _wipe(key);
+      if (_busyEpoch == epoch) _busyEpoch = null;
+      _notify();
     }
   }
 

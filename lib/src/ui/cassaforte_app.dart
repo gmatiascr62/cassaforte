@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import '../backup/qr_backup_service.dart';
 import '../legal/terms.dart';
 import '../security/biometric_unlock.dart';
 import '../security/clipboard_guard.dart';
@@ -11,6 +12,7 @@ import '../session/vault_session.dart';
 import '../storage/backup_files.dart';
 import 'app_scope.dart';
 import 'external_ui_guard.dart';
+import 'qr_scanner.dart';
 import 'screens/setup_screen.dart';
 import 'screens/unlock_screen.dart';
 import 'screens/vault_screen.dart';
@@ -23,8 +25,12 @@ class CassaforteApp extends StatefulWidget {
     required this.biometric,
     required this.terms,
     this.backupFiles = const MethodChannelBackupFiles(),
+    QrBackupService? qrBackup,
+    QrScannerFactory? qrScanner,
     PasswordGenerator? generator,
-  }) : _generator = generator;
+  }) : _generator = generator,
+       _qrBackup = qrBackup,
+       _qrScanner = qrScanner;
 
   final VaultSession session;
   final ClipboardGuard clipboard;
@@ -32,6 +38,8 @@ class CassaforteApp extends StatefulWidget {
   final TermsAcceptance terms;
   final BackupFiles backupFiles;
   final PasswordGenerator? _generator;
+  final QrBackupService? _qrBackup;
+  final QrScannerFactory? _qrScanner;
 
   @override
   State<CassaforteApp> createState() => _CassaforteAppState();
@@ -44,6 +52,7 @@ class _CassaforteAppState extends State<CassaforteApp> {
   late final AppLifecycleListener _lifecycle;
   final _externalUi = ExternalUiGuard();
   final _pending = PendingPrompts();
+  late final QrBackupService _qrBackup = widget._qrBackup ?? QrBackupService();
   late VaultStatus _lastStatus = widget.session.status;
 
   @override
@@ -66,6 +75,11 @@ class _CassaforteAppState extends State<CassaforteApp> {
 
   void _onSessionChanged() {
     final status = widget.session.status;
+    if (_lastStatus == VaultStatus.needsSetup &&
+        status != VaultStatus.needsSetup) {
+      // Bóveda creada o recuperada: se cierran las pantallas de recuperación.
+      _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+    }
     if (_lastStatus == VaultStatus.unlocked && status != VaultStatus.unlocked) {
       // Las pantallas abiertas (p. ej., un formulario a medio completar) se
       // conservan debajo de la pantalla de bloqueo, ocultas y sin foco, para
@@ -104,6 +118,8 @@ class _CassaforteAppState extends State<CassaforteApp> {
       externalUi: _externalUi,
       pending: _pending,
       terms: widget.terms,
+      qrBackup: _qrBackup,
+      qrScanner: widget._qrScanner ?? CameraQrScanner.new,
       child: MaterialApp(
         navigatorKey: _navigatorKey,
         title: 'Cassaforte',

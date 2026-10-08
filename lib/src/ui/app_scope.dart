@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../backup/qr_backup_service.dart';
 import '../legal/terms.dart';
 import '../security/biometric_unlock.dart';
 import '../security/clipboard_guard.dart';
@@ -7,6 +8,7 @@ import '../security/password_generator.dart';
 import '../session/vault_session.dart';
 import '../storage/backup_files.dart';
 import 'external_ui_guard.dart';
+import 'qr_scanner.dart';
 
 /// Da acceso a la sesión y a los servicios desde cualquier pantalla.
 /// Reconstruye los widgets dependientes cuando cambia la sesión.
@@ -21,6 +23,8 @@ class AppScope extends InheritedNotifier<VaultSession> {
     required this.externalUi,
     required this.pending,
     required this.terms,
+    required this.qrBackup,
+    required this.qrScanner,
     required super.child,
   }) : super(notifier: session);
 
@@ -31,6 +35,8 @@ class AppScope extends InheritedNotifier<VaultSession> {
   final ExternalUiGuard externalUi;
   final PendingPrompts pending;
   final TermsAcceptance terms;
+  final QrBackupService qrBackup;
+  final QrScannerFactory qrScanner;
 
   /// Ejecuta una pantalla del sistema (huella, selector de archivos) sin
   /// que el paso a segundo plano bloquee la bóveda.
@@ -60,4 +66,7 @@ class PendingPrompts {
 
   /// Volver a activar la huella (Android invalidó la llave anterior).
   bool reenableBiometric = false;
+
+  /// Cuentas recuperadas de una copia (para confirmar la restauración).
+  int? restoredCount;
 }

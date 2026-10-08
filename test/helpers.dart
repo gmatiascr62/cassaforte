@@ -1,7 +1,21 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:cassaforte/src/backup/qr_backup_cipher.dart';
+import 'package:cassaforte/src/backup/qr_backup_service.dart';
+import 'package:cassaforte/src/backup/qr_chunks.dart';
+import 'package:cassaforte/src/backup/qr_codes.dart';
+import 'package:cassaforte/src/backup/qr_image_reader.dart';
 import 'package:cassaforte/src/crypto/kdf.dart';
+import 'package:cassaforte/src/model/vault_entry.dart';
+import 'package:cassaforte/src/ui/qr_scanner.dart';
+import 'package:flutter/widgets.dart';
+
+import 'backup_page_renderer.dart';
+
+import 'package:cryptography/cryptography.dart';
+import 'package:cryptography/dart.dart';
 import 'package:cassaforte/src/security/biometric_unlock.dart';
 import 'package:cassaforte/src/security/clipboard_guard.dart';
 import 'package:cassaforte/src/storage/backup_files.dart';
@@ -154,12 +168,113 @@ class FakeBackupFiles implements BackupFiles {
   Uint8List? saved;
   Uint8List? toOpen;
 
+  String? savedMime;
+  Uint8List? printed;
+  Uint8List? shared;
+
   @override
-  Future<bool> save(String suggestedName, Uint8List bytes) async {
+  Future<bool> save(
+    String suggestedName,
+    Uint8List bytes, {
+    String mimeType = 'application/octet-stream',
+  }) async {
     saved = Uint8List.fromList(bytes);
+    savedMime = mimeType;
     return true;
   }
 
   @override
+  Future<void> print(String name, Uint8List pdf) async => printed = pdf;
+
+  @override
+  Future<void> share(String fileName, Uint8List pdf) async => shared = pdf;
+
+  @override
   Future<Uint8List?> open() async => toOpen;
+}
+
+List<int> sha256Prefix(List<int> data, int length) =>
+    const DartSha256().hashSync(data).bytes.sublist(0, length);
+
+/// «Rasteriza» un PDF devolviendo hojas ya dibujadas (los tests no tienen
+/// el renderizador nativo de Android).
+class FakeRasterizer implements PdfRasterizer {
+  List<GrayImage> pages = [];
+
+  /// Si se indica, las hojas se dibujan con estos códigos a la resolución
+  /// pedida (como haría el renderizador real de PDF).
+  List<String>? codes;
+  bool fail = false;
+
+  final List<double> dpis = [];
+
+  @override
+  Stream<GrayImage> rasterize(Uint8List pdf, {required double dpi}) async* {
+    dpis.add(dpi);
+    if (fail) throw StateError('PDF dañado');
+    final c = codes;
+    for (final p in c != null ? renderPages(c, dpi: dpi) : pages) {
+      yield p;
+    }
+  }
+}
+
+/// Servicio de copias para pruebas: KDF rápida, sin isolates y recordando
+/// la última copia creada.
+class TestQrBackupService extends QrBackupService {
+  TestQrBackupService({required KeyDerivation kdf, required this.raster})
+    : super(
+        cipher: QrBackupCipher(keyDerivation: kdf, newKdfParams: fastKdfParams),
+        rasterizer: raster,
+        pageDecoder: (page) async => QrImageReader.readAll(page),
+        codeEncoder: (payload) async =>
+            QrChunk.split(payload, isReadable: isQrReadable),
+      );
+
+  final FakeRasterizer raster;
+  PdfBackup? last;
+
+  @override
+  Future<PdfBackup> createPdf(
+    List<VaultEntry> entries,
+    String masterPassword,
+  ) async => last = await super.createPdf(entries, masterPassword);
+}
+
+/// Cámara simulada: la prueba «muestra» códigos con [show].
+class FakeQrScanner implements QrScanner {
+  void Function(String)? _onCode;
+  bool started = false;
+  String? failWith;
+
+  @override
+  Future<void> start(void Function(String text) onCode) async {
+    if (failWith != null) throw QrScannerException(failWith!);
+    started = true;
+    _onCode = onCode;
+  }
+
+  void show(String text) => _onCode?.call(text);
+
+  @override
+  Widget buildPreview(BuildContext context) => const SizedBox.expand();
+
+  @override
+  Future<void> stop() async {
+    started = false;
+    _onCode = null;
+  }
+}
+
+/// Derivación rápida SOLO para las pruebas de interfaz (las pruebas de
+/// cifrado usan Argon2id real).
+class FakeKdf implements KeyDerivation {
+  @override
+  Future<Uint8List> deriveKey(String password, KdfParams params) async {
+    final hash = await Sha256().hash([
+      ...params.salt,
+      ...utf8.encode(password),
+    ]);
+    return Uint8List.fromList(hash.bytes);
+  }
 }

@@ -1,7 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
-import 'package:cassaforte/src/crypto/kdf.dart';
 import 'package:cassaforte/src/crypto/vault_cipher.dart';
 import 'package:cassaforte/src/legal/terms.dart';
 import 'package:cassaforte/src/model/vault_entry.dart';
@@ -9,24 +5,10 @@ import 'package:cassaforte/src/security/biometric_unlock.dart';
 import 'package:cassaforte/src/security/clipboard_guard.dart';
 import 'package:cassaforte/src/session/vault_session.dart';
 import 'package:cassaforte/src/ui/cassaforte_app.dart';
-import 'package:cryptography/cryptography.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'helpers.dart';
-
-/// Derivación rápida SOLO para las pruebas de interfaz (las pruebas de
-/// cifrado usan Argon2id real).
-class FakeKdf implements KeyDerivation {
-  @override
-  Future<Uint8List> deriveKey(String password, KdfParams params) async {
-    final hash = await Sha256().hash([
-      ...params.salt,
-      ...utf8.encode(password),
-    ]);
-    return Uint8List.fromList(hash.bytes);
-  }
-}
 
 Future<TermsAcceptance> acceptedTerms() async {
   final terms = TermsAcceptance(MemoryVaultStore());
@@ -73,6 +55,30 @@ void main() {
     expect(find.text('Bienvenido a Cassaforte'), findsOneWidget);
     expect(find.textContaining('no habrá forma de recuperar'), findsOneWidget);
 
+    // Pantalla inicial: crear o recuperar.
+    expect(find.text('Crear bóveda nueva'), findsOneWidget);
+    expect(find.text('Recuperar mis contraseñas'), findsOneWidget);
+
+    // Sin aceptar los Términos de uso no se puede avanzar.
+    await tapVisible(tester, find.text('Crear bóveda nueva'));
+    await tester.pumpAndSettle();
+    expect(find.text('Primero aceptá los Términos de uso.'), findsOneWidget);
+    await tapVisible(tester, find.text('Recuperar mis contraseñas'));
+    await tester.pumpAndSettle();
+    expect(find.text('Escanear códigos QR'), findsNothing);
+    expect(await terms.isAccepted(), isFalse);
+
+    // Se pueden leer desde la misma pantalla.
+    await tapVisible(tester, find.text('Leer los Términos de uso'));
+    await tester.pumpAndSettle();
+    expect(find.text('6. Limitación de responsabilidad'), findsOneWidget);
+    tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+    await tester.pumpAndSettle();
+
+    await tapVisible(tester, find.byType(Checkbox));
+    await tapVisible(tester, find.text('Crear bóveda nueva'));
+    await tester.pumpAndSettle();
+
     final fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), 'contraseña maestra 1');
     await tester.enterText(fields.at(1), 'contraseña maestra 2');
@@ -89,22 +95,7 @@ void main() {
     );
     expect(store.bytes, isNull);
 
-    // Aviso aceptado, pero faltan los Términos de uso.
-    await tapVisible(tester, find.byType(Checkbox).at(0));
-    await tapVisible(tester, find.widgetWithText(FilledButton, 'Crear bóveda'));
-    await tester.pumpAndSettle();
-    expect(find.text('Debes aceptar los Términos de uso.'), findsOneWidget);
-    expect(store.bytes, isNull);
-    expect(await terms.isAccepted(), isFalse);
-
-    // Se pueden leer desde la misma pantalla.
-    await tapVisible(tester, find.text('Leer los Términos de uso'));
-    await tester.pumpAndSettle();
-    expect(find.text('6. Limitación de responsabilidad'), findsOneWidget);
-    tester.state<NavigatorState>(find.byType(Navigator).first).pop();
-    await tester.pumpAndSettle();
-
-    await tapVisible(tester, find.byType(Checkbox).at(1));
+    await tapVisible(tester, find.byType(Checkbox));
     await tapVisible(tester, find.widgetWithText(FilledButton, 'Crear bóveda'));
     await tester.pumpAndSettle();
     expect(session.status, VaultStatus.unlocked);
@@ -233,7 +224,7 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('restaurar una copia al empezar y exportarla desde Ajustes', (
+  testWidgets('restaurar un archivo .cassaforte de una versión anterior', (
     tester,
   ) async {
     // Copia hecha en "otro teléfono".
@@ -272,8 +263,11 @@ void main() {
     await session.initialize();
     await tester.pumpAndSettle();
 
-    await tapVisible(tester, find.byType(Checkbox).at(1));
-    await tapVisible(tester, find.text('Restaurar copia de seguridad'));
+    // Compatibilidad: archivo .cassaforte de una versión anterior.
+    await tapVisible(tester, find.byType(Checkbox));
+    await tapVisible(tester, find.text('Recuperar mis contraseñas'));
+    await tester.pumpAndSettle();
+    await tapVisible(tester, find.text('Seleccionar archivo PDF'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.descendant(
@@ -285,24 +279,11 @@ void main() {
     await tester.tap(find.text('Abrir'));
     await tester.pumpAndSettle();
     expect(session.status, VaultStatus.unlocked);
+    expect(find.text('Restauración completada'), findsOneWidget);
+    expect(find.textContaining('Se recuperaron 1 cuenta'), findsOneWidget);
+    await tester.tap(find.text('Aceptar'));
+    await tester.pumpAndSettle();
     expect(find.text('Banco'), findsOneWidget);
-
-    // Exportar desde Ajustes.
-    await tester.tap(find.byTooltip('Ajustes y copias'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Exportar copia'));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.byType(TextFormField),
-      ),
-      'contraseña maestra 1',
-    );
-    await tester.tap(find.text('Continuar'));
-    await tester.pumpAndSettle();
-    expect(files.saved, store.bytes);
-    expect(session.status, VaultStatus.unlocked);
 
     session.lock();
     await tester.pump(const Duration(seconds: 5));

@@ -4,6 +4,8 @@ import '../../security/biometric_unlock.dart';
 import '../app_scope.dart';
 import '../vault_actions.dart';
 import '../widgets/common.dart';
+import 'export_screen.dart';
+import 'recovery_screen.dart';
 import 'security_info_screen.dart';
 import 'terms_screen.dart';
 
@@ -90,22 +92,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const Divider(),
                   const _Header('Copias de seguridad'),
                   ListTile(
-                    leading: const Icon(Icons.upload_file),
-                    title: const Text('Exportar copia'),
+                    leading: const Icon(Icons.picture_as_pdf_outlined),
+                    title: const Text('Exportar copia de seguridad'),
                     subtitle: const Text(
-                      'Archivo cifrado con tu contraseña maestra. Guardalo '
-                      'fuera del teléfono para no perder tus claves.',
+                      'PDF con códigos QR cifrados con tu contraseña '
+                      'maestra. Imprimilo o guardalo fuera del teléfono para '
+                      'no perder tus cuentas.',
                     ),
-                    onTap: () => exportBackup(context),
+                    onTap: () => exportPdfBackup(context),
                   ),
                   ListTile(
                     leading: const Icon(Icons.download),
-                    title: const Text('Importar copia'),
+                    title: const Text('Importar copia de seguridad'),
                     subtitle: const Text(
-                      'Fusiona o reemplaza las cuentas con las de un archivo '
-                      'de copia.',
+                      'Fusiona o reemplaza las cuentas con las de una copia '
+                      '(PDF, códigos QR o archivo .cassaforte anterior).',
                     ),
-                    onTap: () => importBackup(context),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) =>
+                            const RecoveryScreen(mode: RecoveryMode.import),
+                      ),
+                    ),
                   ),
                   const Divider(),
                   ListTile(

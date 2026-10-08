@@ -1,7 +1,20 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Único permiso: usar la huella o el bloqueo de pantalla (permiso
-         normal, sin diálogo). Cassaforte no usa la red. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Permisos: huella o bloqueo de pantalla (normal, sin diálogo) y
+         cámara. Cassaforte no usa la red. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Cámara: solo para escanear los códigos QR de una copia de seguridad.
+         Se pide en el momento de escanear. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- El paquete de cámara declara estos permisos para grabar vídeo; Cassaforte
+         no graba nada, así que se eliminan. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+    <!-- La cámara es opcional: sin ella se puede recuperar eligiendo el PDF. -->
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="false"
+        tools:replace="android:required" />
     <application
         android:label="Cassaforte"
         android:name="${applicationName}"

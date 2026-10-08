@@ -52,6 +52,28 @@ class _VaultScreenState extends State<VaultScreen> {
     // anterior): hay que aceptarlos para seguir.
     if (!await _ensureTermsAccepted() || !mounted) return;
     final pending = AppScope.read(context).pending;
+    final restored = pending.restoredCount;
+    if (restored != null) {
+      pending.restoredCount = null;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          icon: const Icon(Icons.check_circle_outline),
+          title: const Text('Restauración completada'),
+          content: Text(
+            'Se recuperaron $restored cuenta(s). Tu contraseña maestra es la '
+            'que usaste para abrir la copia.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Aceptar'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+    }
     if (pending.reenableBiometric) {
       pending
         ..reenableBiometric = false
