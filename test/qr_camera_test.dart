@@ -1,10 +1,12 @@
 // ignore_for_file: implementation_imports
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:cassaforte/src/backup/qr_chunks.dart';
 import 'package:cassaforte/src/backup/qr_codes.dart';
 import 'package:cassaforte/src/backup/qr_image_reader.dart';
+import 'package:cassaforte/src/ui/qr_scanner.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zxing2/qrcode.dart';
 import 'package:zxing2/src/common/perspective_transform.dart';
@@ -126,6 +128,24 @@ List<List<double>> poses(double s, double cx, double cy) {
 }
 
 void main() {
+  test('la cámara decodifica en otro isolate de verdad', () async {
+    // Antes, el cierre enviado a Isolate.run arrastraba el CameraController
+    // (que no se puede enviar a otro isolate): fallaban todos los
+    // fotogramas y la cámara no reconocía ningún código. Aquí quien llama
+    // tiene, como la cámara, un objeto que no se puede enviar.
+    final unsendable = RawReceivePort();
+    addTearDown(unsendable.close);
+    final code = fixedCodes(bytes: 600).first;
+    final frame = cameraFrame(code, poses(500, 640, 360)[2]);
+    Future<String?> onFrame() async {
+      final text = await CameraQrScanner.decodeInBackground(frame);
+      unsendable.sendPort; // Usado en el mismo contexto, como la cámara.
+      return text;
+    }
+
+    expect(await onFrame(), code);
+  });
+
   test(
     'la cámara lee códigos en fotos inclinadas, giradas y en perspectiva',
     () {

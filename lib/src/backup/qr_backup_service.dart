@@ -50,11 +50,13 @@ class PrintingPdfRasterizer implements PdfRasterizer {
   @override
   Stream<GrayImage> rasterize(Uint8List pdf, {required double dpi}) async* {
     await for (final page in Printing.raster(pdf, dpi: dpi)) {
-      final w = page.width, h = page.height;
-      final rgba = page.pixels;
-      yield await Isolate.run(() => GrayImage.fromRgba(w, h, rgba));
+      yield await _toGray(page.width, page.height, page.pixels);
     }
   }
+
+  // Estático para que Isolate.run no arrastre nada más que estos datos.
+  static Future<GrayImage> _toGray(int w, int h, Uint8List rgba) =>
+      Isolate.run(() => GrayImage.fromRgba(w, h, rgba));
 }
 
 /// Exportación y lectura de copias de seguridad en PDF con códigos QR.

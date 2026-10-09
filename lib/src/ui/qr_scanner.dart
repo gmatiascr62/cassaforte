@@ -66,12 +66,15 @@ class CameraQrScanner implements QrScanner {
       await controller.startImageStream((image) {
         if (_decoding || _stopped) return;
         _decoding = true;
-        final frame = _lumaOf(image);
-        Isolate.run(() => QrImageReader.readOne(frame))
+        decodeInBackground(_lumaOf(image))
             .then((text) {
               if (text != null && !_stopped) onCode(text);
             })
-            .catchError((Object _) {})
+            .catchError((Object e) {
+              // No debería pasar; si pasa, que se vea al depurar (el
+              // error no contiene datos del QR).
+              debugPrint('Error al leer un fotograma: ${e.runtimeType}');
+            })
             .whenComplete(() => _decoding = false);
       });
     } on CameraException catch (e) {
@@ -85,6 +88,16 @@ class CameraQrScanner implements QrScanner {
       );
     }
   }
+
+  /// Lee un QR del fotograma en otro isolate.
+  ///
+  /// Tiene que ser estático: `Isolate.run` copia al otro isolate todo el
+  /// contexto de la función que se le pasa, y un cierre creado dentro de
+  /// [start] arrastraría el `CameraController`, que no se puede enviar. Así
+  /// fallaban todos los fotogramas y la cámara no reconocía ningún código.
+  @visibleForTesting
+  static Future<String?> decodeInBackground(GrayImage frame) =>
+      Isolate.run(() => QrImageReader.readOne(frame));
 
   /// Plano Y (luminancia) del fotograma YUV, sin el relleno de cada fila.
   static GrayImage _lumaOf(CameraImage image) {
