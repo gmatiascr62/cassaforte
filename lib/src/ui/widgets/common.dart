@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../model/vault_entry.dart';
 import '../app_scope.dart';
 
 /// Limita el ancho del contenido en pantallas grandes o en horizontal.
@@ -65,8 +66,10 @@ class SecureTextField extends StatelessWidget {
       autocorrect: false,
       enableSuggestions: false,
       enableIMEPersonalizedLearning: false,
+      // Un campo oculto usa el teclado de contraseñas, salvo que se pida
+      // otro (p. ej., numérico para el número de una tarjeta).
       keyboardType: obscure
-          ? TextInputType.visiblePassword
+          ? (keyboardType ?? TextInputType.visiblePassword)
           : (maxLines > 1 ? TextInputType.multiline : keyboardType),
       textInputAction: textInputAction,
       maxLines: obscure ? 1 : maxLines,
@@ -160,10 +163,13 @@ Future<void> copySecret(
   scope.session.registerActivity();
   await scope.clipboard.copySecret(value);
   if (!context.mounted) return;
-  final seconds = scope.clipboard.clearAfter.inSeconds;
+  final after = scope.clipboard.clearAfter;
+  final when = after.inSeconds % 60 == 0
+      ? '${after.inMinutes} min'
+      : '${after.inSeconds} s';
   showMessage(
     context,
-    '$what. Se borrará del portapapeles en $seconds s '
+    '$what. Se borrará del portapapeles en $when '
     'si no copias otra cosa.',
   );
 }
@@ -251,4 +257,28 @@ class _PasswordPromptDialogState extends State<_PasswordPromptDialog> {
       ],
     );
   }
+}
+
+/// Ícono de cada tipo de elemento.
+IconData entryTypeIcon(EntryType type) => switch (type) {
+  EntryType.login => Icons.key_outlined,
+  EntryType.card => Icons.credit_card,
+  EntryType.contact => Icons.person_outline,
+};
+
+/// Número de tarjeta en grupos de 4 cifras, para leerlo mejor.
+String groupCardNumber(String number) {
+  final digits = number.replaceAll(RegExp(r'[ -]'), '');
+  return [
+    for (var i = 0; i < digits.length; i += 4)
+      digits.substring(i, i + 4 > digits.length ? digits.length : i + 4),
+  ].join(' ');
+}
+
+/// Número de tarjeta oculto salvo las últimas 4 cifras («•••• 1234»).
+String maskCardNumber(String number) {
+  final digits = number.replaceAll(RegExp(r'[ -]'), '');
+  return digits.length <= 4
+      ? '••••'
+      : '•••• ${digits.substring(digits.length - 4)}';
 }

@@ -6,7 +6,8 @@ import '../app_scope.dart';
 import '../widgets/common.dart';
 import 'entry_form_screen.dart';
 
-/// Consulta de una cuenta. La contraseña está oculta por defecto.
+/// Consulta de un elemento. La contraseña y los datos ocultos (número de
+/// tarjeta, código de seguridad) están ocultos por defecto.
 class EntryDetailScreen extends StatefulWidget {
   const EntryDetailScreen({super.key, required this.entryId});
 
@@ -22,6 +23,9 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   /// Campos adicionales ocultos que el usuario decidió mostrar.
   final Set<int> _revealed = {};
 
+  /// Datos propios ocultos (número de tarjeta, código) que se mostraron.
+  final Set<String> _revealedDetails = {};
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -29,6 +33,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
     if (!AppScope.of(context).session.isUnlocked) {
       _visible = false;
       _revealed.clear();
+      _revealedDetails.clear();
     }
   }
 
@@ -49,7 +54,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.delete_outline),
-        title: const Text('¿Eliminar cuenta?'),
+        title: Text('¿Eliminar ${_noun(entry.type)}?'),
         content: Text(
           'Se eliminará «${entry.title}» de la bóveda. '
           'Esta acción no se puede deshacer.',
@@ -75,12 +80,12 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
     try {
       await session.deleteEntry(entry.id);
       if (!mounted) return;
-      showMessage(context, 'Cuenta eliminada.');
+      showMessage(context, 'Eliminado: «${entry.title}».');
       Navigator.of(context).pop();
     } on VaultLockedException {
       // La pantalla se cierra al bloquearse.
     } catch (_) {
-      if (mounted) showMessage(context, 'No se pudo eliminar la cuenta.');
+      if (mounted) showMessage(context, 'No se pudo eliminar.');
     }
   }
 
@@ -90,7 +95,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
     if (entry == null) {
       return Scaffold(
         appBar: AppBar(),
-        body: const Center(child: Text('La cuenta ya no existe.')),
+        body: const Center(child: Text('Ya no existe.')),
       );
     }
     final theme = Theme.of(context);
@@ -131,6 +136,9 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                   // Cuentas guardadas con versiones anteriores.
                   if (entry.url.isNotEmpty)
                     _Field(label: 'Dirección web', value: entry.url),
+                  for (final spec in entry.type.details)
+                    if (entry.detail(spec.key).isNotEmpty)
+                      _detailField(entry, spec),
                   for (final (i, field) in entry.fields.indexed)
                     _Field(
                       label: field.label,
@@ -170,28 +178,46 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                   if (entry.notes.isNotEmpty)
                     _Field(label: 'Notas', value: entry.notes),
                   // La contraseña siempre va al final.
-                  _Field(
-                    label: 'Contraseña',
-                    value: _visible ? entry.password : '••••••••••••',
-                    monospace: _visible,
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        VisibilityToggle(
-                          visible: _visible,
-                          onChanged: (v) {
-                            AppScope.read(context).session.registerActivity();
-                            setState(() => _visible = v);
-                          },
-                        ),
-                        IconButton(
-                          tooltip: 'Copiar contraseña',
-                          icon: const Icon(Icons.copy),
-                          onPressed: () => copySecret(context, entry.password),
-                        ),
-                      ],
+                  if (entry.type == EntryType.login)
+                    _Field(
+                      label: 'Contraseña',
+                      value: _visible ? entry.password : '••••••••••••',
+                      monospace: _visible,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          VisibilityToggle(
+                            visible: _visible,
+                            onChanged: (v) {
+                              AppScope.read(context).session.registerActivity();
+                              setState(() => _visible = v);
+                            },
+                          ),
+                          IconButton(
+                            tooltip: 'Copiar contraseña',
+                            icon: const Icon(Icons.copy),
+                            onPressed: () =>
+                                copySecret(context, entry.password),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                  if (entry.type == EntryType.contact)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.tonalIcon(
+                          onPressed: () => copySecret(
+                            context,
+                            entry.contactText(),
+                            what: 'Contacto copiado',
+                          ),
+                          icon: const Icon(Icons.copy_all),
+                          label: const Text('Copiar contacto entero'),
+                        ),
+                      ),
+                    ),
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Text(
@@ -207,6 +233,53 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
       ),
     );
   }
+
+  /// Un dato propio del tipo: con copiar y, si es oculto, mostrar.
+  Widget _detailField(VaultEntry entry, DetailSpec spec) {
+    final value = entry.detail(spec.key);
+    final revealed = _revealedDetails.contains(spec.key);
+    final isNumber = spec.key == 'number';
+    return _Field(
+      label: spec.label,
+      value: !spec.hidden || revealed
+          ? (isNumber ? groupCardNumber(value) : value)
+          : (isNumber ? maskCardNumber(value) : '•••'),
+      monospace: spec.hidden && revealed,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (spec.hidden)
+            IconButton(
+              tooltip: revealed
+                  ? 'Ocultar ${spec.label.toLowerCase()}'
+                  : 'Mostrar ${spec.label.toLowerCase()}',
+              icon: Icon(revealed ? Icons.visibility_off : Icons.visibility),
+              onPressed: () {
+                AppScope.read(context).session.registerActivity();
+                setState(() {
+                  if (!_revealedDetails.remove(spec.key)) {
+                    _revealedDetails.add(spec.key);
+                  }
+                });
+              },
+            ),
+          _copyButton(
+            // El número se copia sin espacios, como lo piden los formularios
+            // de pago.
+            isNumber ? value.replaceAll(RegExp(r'[ -]'), '') : value,
+            'Copiar ${spec.label.toLowerCase()}',
+            '${spec.label}: copiado',
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _noun(EntryType type) => switch (type) {
+    EntryType.login => 'la sesión',
+    EntryType.card => 'la tarjeta',
+    EntryType.contact => 'el contacto',
+  };
 
   static String _formatDate(DateTime utc) {
     final d = utc.toLocal();

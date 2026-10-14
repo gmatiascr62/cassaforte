@@ -100,7 +100,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(session.status, VaultStatus.unlocked);
     expect(await terms.isAccepted(), isTrue);
-    expect(find.textContaining('Aún no hay cuentas'), findsOneWidget);
+    expect(find.textContaining('Todavía no guardaste nada'), findsOneWidget);
 
     // Añadir una cuenta.
     await tapVisible(tester, find.text('Añadir'));
@@ -162,7 +162,7 @@ void main() {
     // Eliminar pide confirmación.
     await tester.tap(find.byTooltip('Eliminar'));
     await tester.pumpAndSettle();
-    expect(find.text('¿Eliminar cuenta?'), findsOneWidget);
+    expect(find.text('¿Eliminar la sesión?'), findsOneWidget);
     await tapVisible(tester, find.text('Cancelar'));
     await tester.pumpAndSettle();
     expect(session.entries, hasLength(1));
@@ -172,7 +172,7 @@ void main() {
     await tapVisible(tester, find.widgetWithText(FilledButton, 'Eliminar'));
     await tester.pumpAndSettle();
     expect(session.entries, isEmpty);
-    expect(find.textContaining('Aún no hay cuentas'), findsOneWidget);
+    expect(find.textContaining('Todavía no guardaste nada'), findsOneWidget);
 
     session.lock();
     await tester.pump(const Duration(seconds: 5));
@@ -291,8 +291,9 @@ void main() {
 
   Future<VaultSession> openVaultWith(
     WidgetTester tester,
-    FakeBiometricPlatform platform,
-  ) async {
+    FakeBiometricPlatform platform, {
+    FakeClipboard? clipboard,
+  }) async {
     final session = VaultSession(
       store: MemoryVaultStore(),
       cipher: VaultCipher(keyDerivation: FakeKdf()),
@@ -302,7 +303,7 @@ void main() {
     await tester.pumpWidget(
       CassaforteApp(
         session: session,
-        clipboard: ClipboardGuard(clipboard: FakeClipboard()),
+        clipboard: ClipboardGuard(clipboard: clipboard ?? FakeClipboard()),
         biometric: BiometricUnlock(
           store: MemoryVaultStore(),
           platform: platform,
@@ -394,7 +395,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(session.status, VaultStatus.locked);
     expect(find.text('Mi banco'), findsNothing); // oculto bajo el bloqueo
-    expect(find.text('Nueva cuenta'), findsNothing);
+    expect(find.text('Nueva sesión'), findsNothing);
 
     // «Atrás» con la bóveda bloqueada no descarta el formulario.
     await tester.binding.handlePopRoute();
@@ -408,7 +409,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Seguimos en el formulario con lo escrito.
-    expect(find.text('Nueva cuenta'), findsOneWidget);
+    expect(find.text('Nueva sesión'), findsOneWidget);
     expect(find.text('Mi banco'), findsOneWidget);
     await tester.enterText(
       find.byType(TextFormField).at(1),
@@ -663,5 +664,214 @@ void main() {
 
     session.lock();
     await tester.pump(const Duration(seconds: 5));
+  });
+
+  group('Tipos', () {
+    Future<void> chooseType(WidgetTester tester, String label) async {
+      await tapVisible(tester, find.byKey(const ValueKey('entry-type')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    Finder field(String label) => find.widgetWithText(TextFormField, label);
+
+    testWidgets('tarjeta: campos propios, número oculto y copiar', (
+      tester,
+    ) async {
+      final clipboard = FakeClipboard();
+      final session = await openVaultWith(
+        tester,
+        FakeBiometricPlatform()..status = BiometricAvailability.unsupported,
+        clipboard: clipboard,
+      );
+      await tester.tap(find.text('Añadir'));
+      await tester.pumpAndSettle();
+      expect(find.text('Nueva sesión'), findsOneWidget);
+      await chooseType(tester, 'Tarjeta');
+
+      expect(find.text('Nueva tarjeta'), findsOneWidget);
+      expect(field('Contraseña *'), findsNothing);
+      expect(find.text('Generar contraseña'), findsNothing);
+      expect(find.text('Añadir campo'), findsOneWidget);
+      expect(find.byType(TextFormField), findsNWidgets(5));
+
+      await tester.enterText(field('Nombre *'), 'Visa Banco');
+      await tester.enterText(field('Vencimiento'), '13/29');
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Guardar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Indicá el número de tarjeta.'), findsOneWidget);
+      expect(find.textContaining('Escribilo como MM/AA'), findsOneWidget);
+      expect(session.entries, isEmpty);
+
+      await tester.enterText(
+        field('Número de tarjeta *'),
+        '4111 1111 1111 1234',
+      );
+      await tester.enterText(field('Vencimiento'), '08/29');
+      await tester.enterText(field('Nombre del titular'), 'Juan Pérez');
+      await tester.enterText(field('Código de seguridad'), '123');
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Guardar'));
+      await tester.pumpAndSettle();
+
+      final card = session.entries.single;
+      expect(card.type, EntryType.card);
+      expect(card.password, isEmpty);
+      expect(card.details, {
+        'number': '4111 1111 1111 1234',
+        'expiry': '08/29',
+        'holder': 'Juan Pérez',
+        'cvv': '123',
+      });
+
+      // Lista: el número oculto y el botón copia el número.
+      expect(find.text('•••• 1234 · 08/29'), findsOneWidget);
+      await tester.tap(find.byTooltip('Copiar número de tarjeta'));
+      await tester.pumpAndSettle();
+      expect(clipboard.content, '4111111111111234');
+      expect(find.textContaining('en 2 min'), findsOneWidget);
+
+      // Detalle: número y código ocultos hasta mostrarlos.
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await tester.tap(find.text('Visa Banco'));
+      await tester.pumpAndSettle();
+      expect(find.text('Contraseña'), findsNothing);
+      expect(find.text('•••• 1234'), findsOneWidget);
+      expect(find.textContaining('4111'), findsNothing);
+      expect(find.text('123'), findsNothing);
+      await tester.tap(find.byTooltip('Mostrar número de tarjeta'));
+      await tester.pump();
+      expect(find.text('4111 1111 1111 1234'), findsOneWidget);
+      await tester.tap(find.byTooltip('Mostrar código de seguridad'));
+      await tester.pump();
+      expect(find.text('123'), findsOneWidget);
+      await tester.tap(find.byTooltip('Copiar nombre del titular'));
+      await tester.pump();
+      expect(clipboard.content, 'Juan Pérez');
+
+      session.lock();
+      await tester.pump(const Duration(minutes: 3));
+    });
+
+    testWidgets('contacto: datos propios, campo extra y copiar entero', (
+      tester,
+    ) async {
+      final clipboard = FakeClipboard();
+      final session = await openVaultWith(
+        tester,
+        FakeBiometricPlatform()..status = BiometricAvailability.unsupported,
+        clipboard: clipboard,
+      );
+      await tester.tap(find.text('Añadir'));
+      await tester.pumpAndSettle();
+      await chooseType(tester, 'Contacto');
+      expect(find.text('Nuevo contacto'), findsOneWidget);
+      await tester.enterText(field('Nombre *'), 'Ana');
+      await tester.enterText(field('Teléfono'), '+54 11 5555-1234');
+      await tester.enterText(field('Email'), 'ana@example.com');
+
+      await tapVisible(tester, find.text('Añadir campo'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextField),
+        ),
+        'Cumpleaños',
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Añadir'));
+      await tester.pumpAndSettle();
+      await tester.enterText(field('Cumpleaños'), '3 de mayo');
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Guardar'));
+      await tester.pumpAndSettle();
+
+      final contact = session.entries.single;
+      expect(contact.type, EntryType.contact);
+      expect(contact.details, {
+        'phone': '+54 11 5555-1234',
+        'email': 'ana@example.com',
+      });
+      expect(contact.fields, const [
+        CustomField(label: 'Cumpleaños', value: '3 de mayo'),
+      ]);
+      expect(find.text('+54 11 5555-1234'), findsOneWidget); // en la lista
+
+      await tester.tap(find.text('Ana'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Copiar teléfono'));
+      await tester.pump();
+      expect(clipboard.content, '+54 11 5555-1234');
+
+      await tapVisible(tester, find.text('Copiar contacto entero'));
+      await tester.pumpAndSettle();
+      expect(
+        clipboard.content,
+        'Ana\n'
+        'Teléfono: +54 11 5555-1234\n'
+        'Email: ana@example.com\n'
+        'Cumpleaños: 3 de mayo',
+      );
+      expect(find.textContaining('Contacto copiado'), findsOneWidget);
+
+      session.lock();
+      await tester.pump(const Duration(minutes: 3));
+    });
+
+    testWidgets('cambiar el tipo al editar no pierde ningún dato', (
+      tester,
+    ) async {
+      final session = await openVaultWith(
+        tester,
+        FakeBiometricPlatform()..status = BiometricAvailability.unsupported,
+      );
+      final old = VaultEntry.create(
+        title: 'Correo',
+        username: 'yo',
+        password: 'S3creta!',
+      );
+      await session.saveEntry(old);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Correo'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Editar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Editar sesión'), findsOneWidget);
+
+      // A contacto: usuario y contraseña pasan a campos adicionales.
+      await chooseType(tester, 'Contacto');
+      expect(
+        find.textContaining('pasaron a campos adicionales'),
+        findsOneWidget,
+      );
+      expect(field('Usuario'), findsOneWidget);
+      expect(field('Contraseña'), findsOneWidget);
+      expect(field('Teléfono'), findsOneWidget);
+
+      // De vuelta a sesión: vuelven a su lugar.
+      await chooseType(tester, 'Sesión');
+      expect(find.byTooltip('Quitar Usuario'), findsNothing);
+      expect(find.byTooltip('Quitar Contraseña'), findsNothing);
+      expect(field('Contraseña *'), findsOneWidget);
+
+      await chooseType(tester, 'Contacto');
+      await tester.enterText(field('Teléfono'), '555');
+      // Se espera a que se vaya el aviso, que tapa el botón.
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Guardar'));
+      await tester.pumpAndSettle();
+
+      final saved = session.entryById(old.id)!;
+      expect(saved.type, EntryType.contact);
+      expect(saved.username, isEmpty);
+      expect(saved.password, isEmpty);
+      expect(saved.details, {'phone': '555'});
+      expect(saved.fields, const [
+        CustomField(label: 'Usuario', value: 'yo'),
+        CustomField(label: 'Contraseña', value: 'S3creta!', hidden: true),
+      ]);
+
+      session.lock();
+      await tester.pump(const Duration(seconds: 5));
+    });
   });
 }

@@ -47,7 +47,86 @@ class CustomField {
   int get hashCode => Object.hash(label, value, hidden);
 }
 
-/// Una cuenta guardada en la bóveda. Todos sus campos se guardan cifrados.
+/// Cómo se escribe un dato propio de un tipo (para elegir el teclado).
+enum DetailKind { text, number, phone, email, address, expiry }
+
+/// Un dato propio de un tipo de elemento (p. ej., el número de una tarjeta).
+class DetailSpec {
+  const DetailSpec(
+    this.key,
+    this.label, {
+    this.hidden = false,
+    this.required = false,
+    this.kind = DetailKind.text,
+    this.hint,
+  });
+
+  /// Clave con la que se guarda (no cambiar: está en las bóvedas y copias).
+  final String key;
+  final String label;
+
+  /// Se muestra oculto como una contraseña.
+  final bool hidden;
+  final bool required;
+  final DetailKind kind;
+  final String? hint;
+}
+
+/// Qué se guarda en un elemento de la bóveda.
+enum EntryType {
+  /// Usuario y contraseña de una página o app (lo que había antes).
+  login('login', 'Sesión'),
+  card('card', 'Tarjeta'),
+  contact('contact', 'Contacto');
+
+  const EntryType(this.id, this.label);
+
+  /// Identificador que se guarda (no cambiar).
+  final String id;
+  final String label;
+
+  static EntryType fromId(String id) => values.firstWhere(
+    (t) => t.id == id,
+    orElse: () => throw FormatException('Tipo "$id" no válido'),
+  );
+
+  /// Datos propios del tipo, en orden. Las sesiones usan los campos de
+  /// siempre (usuario y contraseña).
+  List<DetailSpec> get details => switch (this) {
+    EntryType.login => const [],
+    EntryType.card => const [
+      DetailSpec(
+        'number',
+        'Número de tarjeta',
+        hidden: true,
+        required: true,
+        kind: DetailKind.number,
+      ),
+      DetailSpec(
+        'expiry',
+        'Vencimiento',
+        kind: DetailKind.expiry,
+        hint: 'MM/AA',
+      ),
+      DetailSpec('holder', 'Nombre del titular'),
+      DetailSpec(
+        'cvv',
+        'Código de seguridad',
+        hidden: true,
+        kind: DetailKind.number,
+        hint: 'Los 3 o 4 números de atrás',
+      ),
+    ],
+    EntryType.contact => const [
+      DetailSpec('phone', 'Teléfono', kind: DetailKind.phone),
+      DetailSpec('email', 'Email', kind: DetailKind.email),
+      DetailSpec('address', 'Dirección', kind: DetailKind.address),
+    ],
+  };
+}
+
+/// Un elemento guardado en la bóveda: una sesión (usuario y contraseña),
+/// una tarjeta o un contacto. Todos sus datos se guardan cifrados.
 class VaultEntry {
   const VaultEntry({
     required this.id,
@@ -59,15 +138,19 @@ class VaultEntry {
     required this.createdAt,
     required this.updatedAt,
     this.fields = const [],
+    this.type = EntryType.login,
+    this.details = const {},
   });
 
   factory VaultEntry.create({
     required String title,
     String url = '',
     String username = '',
-    required String password,
+    String password = '',
     String notes = '',
     List<CustomField> fields = const [],
+    EntryType type = EntryType.login,
+    Map<String, String> details = const {},
     DateTime? now,
   }) {
     final time = (now ?? DateTime.now()).toUtc();
@@ -81,10 +164,19 @@ class VaultEntry {
       createdAt: time,
       updatedAt: time,
       fields: List.unmodifiable(fields),
+      type: type,
+      details: Map.unmodifiable(details),
     );
   }
 
-  /// Nombre de la página o servicio.
+  final EntryType type;
+
+  /// Datos propios del tipo ([EntryType.details]), por clave.
+  final Map<String, String> details;
+
+  String detail(String key) => details[key] ?? '';
+
+  /// Nombre de la página o servicio, de la tarjeta o del contacto.
   final String title;
   final String id;
   final String url;
@@ -106,6 +198,8 @@ class VaultEntry {
     String? password,
     String? notes,
     List<CustomField>? fields,
+    EntryType? type,
+    Map<String, String>? details,
     DateTime? updatedAt,
   }) {
     return VaultEntry(
@@ -116,13 +210,15 @@ class VaultEntry {
       password: password ?? this.password,
       notes: notes ?? this.notes,
       fields: fields == null ? this.fields : List.unmodifiable(fields),
+      type: type ?? this.type,
+      details: details == null ? this.details : Map.unmodifiable(details),
       createdAt: createdAt,
       updatedAt: (updatedAt ?? DateTime.now()).toUtc(),
     );
   }
 
   /// Coincidencia de búsqueda sin distinguir mayúsculas. No busca en la
-  /// contraseña.
+  /// contraseña ni en los datos ocultos (número de tarjeta, código…).
   bool matches(String query) {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return true;
@@ -130,6 +226,10 @@ class VaultEntry {
         url.toLowerCase().contains(q) ||
         username.toLowerCase().contains(q) ||
         notes.toLowerCase().contains(q) ||
+        (type != EntryType.login && type.label.toLowerCase().contains(q)) ||
+        type.details.any(
+          (d) => !d.hidden && detail(d.key).toLowerCase().contains(q),
+        ) ||
         fields.any(
           (f) =>
               f.label.toLowerCase().contains(q) ||
@@ -137,13 +237,28 @@ class VaultEntry {
         );
   }
 
+  /// El contacto como texto, para copiarlo entero: nombre y, en cada
+  /// línea, los datos que tenga (los campos ocultos no se incluyen).
+  String contactText() => [
+    title,
+    for (final d in type.details)
+      if (!d.hidden && detail(d.key).isNotEmpty) '${d.label}: ${detail(d.key)}',
+    for (final f in fields)
+      if (!f.hidden && f.value.isNotEmpty) '${f.label}: ${f.value}',
+  ].join('\n');
+
   Map<String, Object?> toJson() => {
     'id': id,
+    'type': type.id,
     'title': title,
     'url': url,
     'username': username,
     'password': password,
     'notes': notes,
+    'details': {
+      for (final e in details.entries)
+        if (e.value.isNotEmpty) e.key: e.value,
+    },
     'fields': [for (final f in fields) f.toJson()],
     'createdAt': createdAt.millisecondsSinceEpoch,
     'updatedAt': updatedAt.millisecondsSinceEpoch,
@@ -180,6 +295,22 @@ class VaultEntry {
         ),
         _ => throw const FormatException('Campo "fields" no válido'),
       },
+      // Las bóvedas y copias anteriores no tienen tipo: son sesiones.
+      type: switch (json['type']) {
+        null => EntryType.login,
+        final String id => EntryType.fromId(id),
+        _ => throw const FormatException('Campo "type" no válido'),
+      },
+      details: switch (json['details']) {
+        null => const {},
+        final Map<String, Object?> map => Map.unmodifiable({
+          for (final e in map.entries)
+            e.key: e.value is String
+                ? e.value! as String
+                : throw const FormatException('Campo "details" no válido'),
+        }),
+        _ => throw const FormatException('Campo "details" no válido'),
+      },
     );
   }
 
@@ -189,7 +320,12 @@ class VaultEntry {
 
 /// Serialización del contenido (en claro) de la bóveda, antes de cifrarlo.
 class VaultContents {
-  static const int schemaVersion = 1;
+  /// 2: elementos con tipo (sesión, tarjeta, contacto). Se siguen leyendo
+  /// las bóvedas y copias de la versión 1 (todo son sesiones). Una versión
+  /// anterior de la app rechaza la 2 en vez de perder las tarjetas y los
+  /// contactos al guardar.
+  static const int schemaVersion = 2;
+  static const Set<int> readableVersions = {1, 2};
 
   static List<int> encode(List<VaultEntry> entries) => utf8.encode(
     jsonEncode({
@@ -200,7 +336,8 @@ class VaultContents {
 
   static List<VaultEntry> decode(List<int> bytes) {
     final doc = jsonDecode(utf8.decode(bytes));
-    if (doc is! Map<String, Object?> || doc['schema'] != schemaVersion) {
+    if (doc is! Map<String, Object?> ||
+        !readableVersions.contains(doc['schema'])) {
       throw const FormatException('Contenido no válido');
     }
     final list = doc['entries'];

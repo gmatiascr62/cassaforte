@@ -7,8 +7,8 @@ void main() {
   const wait = Duration(milliseconds: 60);
   const after = Duration(milliseconds: 150);
 
-  test('el plazo por defecto es de 20 segundos', () {
-    expect(ClipboardGuard().clearAfter, const Duration(seconds: 20));
+  test('el plazo por defecto es de 2 minutos', () {
+    expect(ClipboardGuard().clearAfter, const Duration(minutes: 2));
   });
 
   test('borra la contraseña pasado el plazo', () async {

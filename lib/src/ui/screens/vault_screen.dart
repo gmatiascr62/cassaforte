@@ -154,7 +154,7 @@ class _VaultScreenState extends State<VaultScreen> {
     final id = await Navigator.of(
       context,
     ).push(MaterialPageRoute<String>(builder: (_) => const EntryFormScreen()));
-    if (id != null && mounted) showMessage(context, 'Cuenta guardada.');
+    if (id != null && mounted) showMessage(context, 'Guardado.');
   }
 
   Future<void> _generator() async {
@@ -207,7 +207,7 @@ class _VaultScreenState extends State<VaultScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: SearchBar(
                   controller: _search,
-                  hintText: 'Buscar cuentas',
+                  hintText: 'Buscar',
                   leading: const Icon(Icons.search),
                   elevation: const WidgetStatePropertyAll(0),
                   trailing: [
@@ -232,13 +232,14 @@ class _VaultScreenState extends State<VaultScreen> {
                     ? const _EmptyState(
                         icon: Icons.inventory_2_outlined,
                         text:
-                            'Aún no hay cuentas.\nPulsa «Añadir» para '
-                            'guardar la primera.',
+                            'Todavía no guardaste nada.\nPulsa «Añadir» '
+                            'para guardar una sesión, una tarjeta o un '
+                            'contacto.',
                       )
                     : visible.isEmpty
                     ? const _EmptyState(
                         icon: Icons.search_off,
-                        text: 'Ninguna cuenta coincide con la búsqueda.',
+                        text: 'Nada coincide con la búsqueda.',
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.only(bottom: 96),
@@ -268,21 +269,49 @@ class _EntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final subtitle = entry.username.isNotEmpty ? entry.username : entry.url;
-    final initial = entry.title.trim().isEmpty
-        ? '?'
-        : entry.title.trim().characters.first.toUpperCase();
+    final subtitle = switch (entry.type) {
+      EntryType.login => entry.username.isNotEmpty ? entry.username : entry.url,
+      EntryType.card => [
+        if (entry.detail('number').isNotEmpty)
+          maskCardNumber(entry.detail('number')),
+        if (entry.detail('expiry').isNotEmpty) entry.detail('expiry'),
+      ].join(' · '),
+      EntryType.contact =>
+        entry.detail('phone').isNotEmpty
+            ? entry.detail('phone')
+            : entry.detail('email'),
+    };
+    // Lo que copia el botón de la lista, según el tipo.
+    final (copyTooltip, copyValue, copied) = switch (entry.type) {
+      EntryType.login => (
+        'Copiar contraseña',
+        entry.password,
+        'Contraseña copiada',
+      ),
+      EntryType.card => (
+        'Copiar número de tarjeta',
+        entry.detail('number').replaceAll(RegExp(r'[ -]'), ''),
+        'Número de tarjeta copiado',
+      ),
+      EntryType.contact => (
+        'Copiar contacto',
+        entry.contactText(),
+        'Contacto copiado',
+      ),
+    };
     return ListTile(
-      leading: CircleAvatar(child: Text(initial)),
+      leading: CircleAvatar(child: Icon(entryTypeIcon(entry.type))),
       title: Text(entry.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: subtitle.isEmpty
           ? null
           : Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: IconButton(
-        tooltip: 'Copiar contraseña',
-        icon: const Icon(Icons.copy),
-        onPressed: () => copySecret(context, entry.password),
-      ),
+      trailing: copyValue.isEmpty
+          ? null
+          : IconButton(
+              tooltip: copyTooltip,
+              icon: const Icon(Icons.copy),
+              onPressed: () => copySecret(context, copyValue, what: copied),
+            ),
       onTap: onTap,
     );
   }

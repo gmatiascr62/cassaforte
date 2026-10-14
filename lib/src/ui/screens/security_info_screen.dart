@@ -83,8 +83,8 @@ class SecurityInfoScreen extends StatelessWidget {
                         'están en la memoria del teléfono. Un móvil con '
                         'malware o con root puede leerlos.',
                     'Al copiar, otras aplicaciones o el teclado podrían '
-                        'leer el portapapeles. Se intenta borrar a los 20 '
-                        'segundos, pero si la aplicación está en segundo '
+                        'leer el portapapeles. Se intenta borrar a los 2 '
+                        'minutos, pero si la aplicación está en segundo '
                         'plano Android puede impedirlo hasta que vuelvas.',
                     'Una contraseña maestra débil puede adivinarse si '
                         'alguien obtiene el archivo cifrado.',

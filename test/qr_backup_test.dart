@@ -40,27 +40,53 @@ List<VaultEntry> sampleAccounts(int n, {int seed = 7}) {
   ];
   return [
     for (var i = 0; i < n; i++)
-      VaultEntry.create(
-        title: '${sites[i % sites.length]} $i',
-        url: i.isEven
-            ? 'https://www.${rnd(8, 'abcdefghijklmnopqrstuvwxyz')}.com/login'
-            : '',
-        username: 'usuario.$i@ejemplo.com',
-        password: rnd(20),
-        notes: i % 5 == 0
-            ? 'Preguntas de seguridad: ${rnd(12)} ñandú «$i»'
-            : '',
-        fields: i % 3 == 0
-            ? [
-                CustomField(
-                  label: 'PIN',
-                  value: rnd(4, '0123456789'),
-                  hidden: true,
-                ),
-              ]
-            : const [],
-        now: DateTime.utc(2025, 1, 1).add(Duration(minutes: i)),
-      ),
+      // Una de cada diez es una tarjeta y otra un contacto.
+      if (i % 10 == 3)
+        VaultEntry.create(
+          title: 'Visa $i',
+          type: EntryType.card,
+          details: {
+            'number': rnd(16, '0123456789'),
+            'expiry': '0${1 + i % 9}/3${i % 10}',
+            'holder': 'Titular Ñandú $i',
+            'cvv': rnd(3, '0123456789'),
+          },
+          now: DateTime.utc(2025, 1, 1).add(Duration(minutes: i)),
+        )
+      else if (i % 10 == 7)
+        VaultEntry.create(
+          title: 'Contacto $i',
+          type: EntryType.contact,
+          details: {
+            'phone': '+54 11 ${rnd(8, '0123456789')}',
+            'email': 'contacto.$i@ejemplo.com',
+            'address': 'Calle ${rnd(6)} $i',
+          },
+          fields: [CustomField(label: 'Cumpleaños', value: '$i de mayo')],
+          now: DateTime.utc(2025, 1, 1).add(Duration(minutes: i)),
+        )
+      else
+        VaultEntry.create(
+          title: '${sites[i % sites.length]} $i',
+          url: i.isEven
+              ? 'https://www.${rnd(8, 'abcdefghijklmnopqrstuvwxyz')}.com/login'
+              : '',
+          username: 'usuario.$i@ejemplo.com',
+          password: rnd(20),
+          notes: i % 5 == 0
+              ? 'Preguntas de seguridad: ${rnd(12)} ñandú «$i»'
+              : '',
+          fields: i % 3 == 0
+              ? [
+                  CustomField(
+                    label: 'PIN',
+                    value: rnd(4, '0123456789'),
+                    hidden: true,
+                  ),
+                ]
+              : const [],
+          now: DateTime.utc(2025, 1, 1).add(Duration(minutes: i)),
+        ),
   ];
 }
 
@@ -75,6 +101,8 @@ void expectSameEntries(List<VaultEntry> actual, List<VaultEntry> expected) {
     expect(a.password, e.password);
     expect(a.notes, e.notes);
     expect(a.fields, e.fields);
+    expect(a.type, e.type);
+    expect(a.details, e.details);
     expect(a.createdAt, e.createdAt);
     expect(a.updatedAt, e.updatedAt);
   }
@@ -325,7 +353,15 @@ void main() {
           .map((c) => latin1.decode(Base45.decode(c), allowInvalid: true))
           .join();
       for (final e in entries) {
-        for (final secret in [e.title, e.username, e.password]) {
+        for (final secret in [
+          e.title,
+          e.username,
+          e.password,
+          ...e.details.values,
+        ]) {
+          // Un valor muy corto (p. ej., un código de seguridad de 3 cifras)
+          // aparece por azar en cualquier texto cifrado largo: no prueba nada.
+          if (secret.length < 6) continue;
           expect(all.contains(secret.toUpperCase()), isFalse);
           expect(decoded.contains(secret), isFalse);
         }

@@ -73,8 +73,12 @@ class PlatformSecureClipboard implements SecureClipboard {
 class ClipboardGuard {
   ClipboardGuard({
     SecureClipboard clipboard = const PlatformSecureClipboard(),
-    this.clearAfter = const Duration(seconds: 20),
+    this.clearAfter = defaultClearAfter,
   }) : _clipboard = clipboard;
+
+  /// Dos minutos: tiempo para cambiar de app y pegar con calma, sin dejar
+  /// el dato copiado indefinidamente.
+  static const Duration defaultClearAfter = Duration(minutes: 2);
 
   final SecureClipboard _clipboard;
   final Duration clearAfter;
