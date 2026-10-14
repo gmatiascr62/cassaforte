@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../model/vault_entry.dart';
+import '../../session/vault_session.dart';
 import '../app_scope.dart';
+import '../vault_actions.dart';
 import '../widgets/common.dart';
 import '../widgets/generator_sheet.dart';
 import 'entry_detail_screen.dart';
 import 'entry_form_screen.dart';
-import 'security_info_screen.dart';
+import 'settings_screen.dart';
+import 'terms_screen.dart';
 
 /// Lista de cuentas con búsqueda.
 class VaultScreen extends StatefulWidget {
@@ -20,8 +23,121 @@ class _VaultScreenState extends State<VaultScreen> {
   final _search = TextEditingController();
   String _query = '';
 
+  VaultSession? _session;
+  bool _wasUnlocked = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final session = AppScope.read(context).session;
+    if (!identical(session, _session)) {
+      _session?.removeListener(_onSessionChanged);
+      _session = session..addListener(_onSessionChanged);
+      _onSessionChanged();
+    }
+  }
+
+  /// Los avisos pendientes se muestran cada vez que se abre la bóveda.
+  void _onSessionChanged() {
+    final unlocked = _session!.isUnlocked;
+    if (unlocked && !_wasUnlocked) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showPending());
+    }
+    _wasUnlocked = unlocked;
+  }
+
+  Future<void> _showPending() async {
+    if (!mounted || !(_session?.isUnlocked ?? false)) return;
+    // Bóvedas creadas antes de los Términos de uso (o con una versión
+    // anterior): hay que aceptarlos para seguir.
+    if (!await _ensureTermsAccepted() || !mounted) return;
+    final pending = AppScope.read(context).pending;
+    final restored = pending.restoredCount;
+    if (restored != null) {
+      pending.restoredCount = null;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          icon: const Icon(Icons.check_circle_outline),
+          title: const Text('Restauración completada'),
+          content: Text(
+            'Se recuperaron $restored cuenta(s). Tu contraseña maestra es la '
+            'que usaste para abrir la copia.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Aceptar'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+    }
+    if (pending.reenableBiometric) {
+      pending
+        ..reenableBiometric = false
+        ..offerBiometric = false;
+      showMessage(
+        context,
+        'Cambiaron las huellas o el bloqueo del teléfono: '
+        'confirmá para volver a activar la huella.',
+      );
+      await enableBiometric(context);
+    } else if (pending.offerBiometric) {
+      pending.offerBiometric = false;
+      await offerBiometric(context);
+    }
+  }
+
+  Future<bool> _ensureTermsAccepted() async {
+    final scope = AppScope.read(context);
+    if (await scope.terms.isAccepted()) return true;
+    if (!mounted) return false;
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          icon: const Icon(Icons.gavel_outlined),
+          title: const Text('Términos de uso'),
+          content: const Text(
+            'Para seguir usando Cassaforte, leé y aceptá los Términos de uso. '
+            'La app se ofrece gratis y «tal cual», y vos sos responsable de '
+            'la seguridad de tu teléfono, tu contraseña maestra y tus copias.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const TermsScreen()),
+              ),
+              child: const Text('Leer'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('No acepto'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Acepto'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (accepted == true) {
+      await scope.terms.accept();
+      return true;
+    }
+    // Sin aceptar no se puede usar: se vuelve a bloquear.
+    scope.session.lock();
+    return false;
+  }
+
   @override
   void dispose() {
+    _session?.removeListener(_onSessionChanged);
     _search.dispose();
     super.dispose();
   }
@@ -38,7 +154,7 @@ class _VaultScreenState extends State<VaultScreen> {
     final id = await Navigator.of(
       context,
     ).push(MaterialPageRoute<String>(builder: (_) => const EntryFormScreen()));
-    if (id != null && mounted) showMessage(context, 'Cuenta guardada.');
+    if (id != null && mounted) showMessage(context, 'Guardado.');
   }
 
   Future<void> _generator() async {
@@ -64,12 +180,10 @@ class _VaultScreenState extends State<VaultScreen> {
             onPressed: _generator,
           ),
           IconButton(
-            tooltip: 'Seguridad y limitaciones',
-            icon: const Icon(Icons.info_outline),
+            tooltip: 'Ajustes y copias',
+            icon: const Icon(Icons.settings_outlined),
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const SecurityInfoScreen(),
-              ),
+              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
             ),
           ),
           IconButton(
@@ -93,7 +207,7 @@ class _VaultScreenState extends State<VaultScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: SearchBar(
                   controller: _search,
-                  hintText: 'Buscar cuentas',
+                  hintText: 'Buscar',
                   leading: const Icon(Icons.search),
                   elevation: const WidgetStatePropertyAll(0),
                   trailing: [
@@ -118,13 +232,14 @@ class _VaultScreenState extends State<VaultScreen> {
                     ? const _EmptyState(
                         icon: Icons.inventory_2_outlined,
                         text:
-                            'Aún no hay cuentas.\nPulsa «Añadir» para '
-                            'guardar la primera.',
+                            'Todavía no guardaste nada.\nPulsa «Añadir» '
+                            'para guardar una sesión, una tarjeta o un '
+                            'contacto.',
                       )
                     : visible.isEmpty
                     ? const _EmptyState(
                         icon: Icons.search_off,
-                        text: 'Ninguna cuenta coincide con la búsqueda.',
+                        text: 'Nada coincide con la búsqueda.',
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.only(bottom: 96),
@@ -154,21 +269,49 @@ class _EntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final subtitle = entry.username.isNotEmpty ? entry.username : entry.url;
-    final initial = entry.title.trim().isEmpty
-        ? '?'
-        : entry.title.trim().characters.first.toUpperCase();
+    final subtitle = switch (entry.type) {
+      EntryType.login => entry.username.isNotEmpty ? entry.username : entry.url,
+      EntryType.card => [
+        if (entry.detail('number').isNotEmpty)
+          maskCardNumber(entry.detail('number')),
+        if (entry.detail('expiry').isNotEmpty) entry.detail('expiry'),
+      ].join(' · '),
+      EntryType.contact =>
+        entry.detail('phone').isNotEmpty
+            ? entry.detail('phone')
+            : entry.detail('email'),
+    };
+    // Lo que copia el botón de la lista, según el tipo.
+    final (copyTooltip, copyValue, copied) = switch (entry.type) {
+      EntryType.login => (
+        'Copiar contraseña',
+        entry.password,
+        'Contraseña copiada',
+      ),
+      EntryType.card => (
+        'Copiar número de tarjeta',
+        entry.detail('number').replaceAll(RegExp(r'[ -]'), ''),
+        'Número de tarjeta copiado',
+      ),
+      EntryType.contact => (
+        'Copiar contacto',
+        entry.contactText(),
+        'Contacto copiado',
+      ),
+    };
     return ListTile(
-      leading: CircleAvatar(child: Text(initial)),
+      leading: CircleAvatar(child: Icon(entryTypeIcon(entry.type))),
       title: Text(entry.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: subtitle.isEmpty
           ? null
           : Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: IconButton(
-        tooltip: 'Copiar contraseña',
-        icon: const Icon(Icons.copy),
-        onPressed: () => copySecret(context, entry.password),
-      ),
+      trailing: copyValue.isEmpty
+          ? null
+          : IconButton(
+              tooltip: copyTooltip,
+              icon: const Icon(Icons.copy),
+              onPressed: () => copySecret(context, copyValue, what: copied),
+            ),
       onTap: onTap,
     );
   }

@@ -9,6 +9,9 @@ abstract interface class VaultStore {
   /// Sustituye el contenido de forma atómica: o queda el archivo anterior
   /// completo, o el nuevo completo.
   Future<void> writeAtomic(Uint8List bytes);
+
+  /// Borra el archivo si existe.
+  Future<void> delete();
 }
 
 /// Guarda la bóveda en un archivo del directorio privado de la aplicación.
@@ -31,6 +34,11 @@ class FileVaultStore implements VaultStore {
 
   @override
   Future<Uint8List> read() => _file.readAsBytes();
+
+  @override
+  Future<void> delete() async {
+    if (await _file.exists()) await _file.delete();
+  }
 
   @override
   Future<void> writeAtomic(Uint8List bytes) async {

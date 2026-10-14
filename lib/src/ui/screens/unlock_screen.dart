@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../security/biometric_unlock.dart';
 import '../../session/vault_session.dart';
 import '../app_scope.dart';
 import '../widgets/common.dart';
@@ -16,9 +17,76 @@ class _UnlockScreenState extends State<UnlockScreen> {
   final _password = TextEditingController();
   bool _visible = false;
   String? _error;
+  bool _biometricEnabled = false;
+  bool _autoPrompted = false;
+  bool _prompting = false;
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    // Muestra el diálogo de huella al volver a la aplicación (una vez).
+    _lifecycle = AppLifecycleListener(onResume: _maybeAutoPrompt);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBiometric());
+  }
+
+  Future<void> _loadBiometric() async {
+    if (!mounted) return;
+    final enabled = await AppScope.read(context).biometric.isEnabled();
+    if (!mounted) return;
+    setState(() => _biometricEnabled = enabled);
+    if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      _maybeAutoPrompt();
+    }
+  }
+
+  void _maybeAutoPrompt() {
+    if (!_biometricEnabled || _autoPrompted || !mounted) return;
+    _autoPrompted = true;
+    _unlockWithBiometric();
+  }
+
+  Future<void> _unlockWithBiometric() async {
+    if (_prompting) return;
+    final scope = AppScope.read(context);
+    if (scope.session.isBusy) return;
+    setState(() {
+      _prompting = true;
+      _error = null;
+    });
+    String? error;
+    try {
+      await scope.runExternal(() => scope.biometric.unlock(scope.session));
+    } on BiometricCanceledException {
+      // El usuario prefirió la contraseña.
+    } on BiometricInvalidatedException {
+      scope.pending.reenableBiometric = true;
+      _biometricEnabled = false;
+      error =
+          'Cambiaron las huellas o el bloqueo de pantalla del teléfono y '
+          'Android anuló la llave por seguridad. Escribí la contraseña '
+          'maestra; después vas a poder volver a activar la huella.';
+    } on BiometricFailedException catch (e) {
+      error = 'No se pudo usar la huella: ${e.message}';
+    } on VaultCorruptedException {
+      error =
+          'El archivo de la bóveda está dañado o no es válido. '
+          'No se ha modificado.';
+    } on VaultLockedException {
+      // Se bloqueó durante el desbloqueo.
+    } catch (_) {
+      error = 'No se pudo abrir la bóveda con la huella.';
+    }
+    if (!mounted) return;
+    setState(() {
+      _prompting = false;
+      _error = error;
+    });
+  }
 
   @override
   void dispose() {
+    _lifecycle.dispose();
     _password.clear();
     _password.dispose();
     super.dispose();
@@ -53,7 +121,7 @@ class _UnlockScreenState extends State<UnlockScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final busy = AppScope.of(context).session.isBusy;
+    final busy = AppScope.of(context).session.isBusy || _prompting;
     final theme = Theme.of(context);
     return Scaffold(
       body: SafeArea(
@@ -113,6 +181,16 @@ class _UnlockScreenState extends State<UnlockScreen> {
                         : const Icon(Icons.lock_open),
                     label: Text(busy ? 'Abriendo…' : 'Desbloquear'),
                   ),
+                  if (_biometricEnabled) ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: busy || _prompting
+                          ? null
+                          : _unlockWithBiometric,
+                      icon: const Icon(Icons.fingerprint),
+                      label: const Text('Usar huella o patrón'),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   Text(
                     'Si olvidas la contraseña maestra no hay forma de '

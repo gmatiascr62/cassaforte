@@ -98,6 +98,10 @@ jobs:
             echo "::error::El APK declara permisos de red."
             exit 1
           fi
+          if grep -Eq 'android.permission.(RECORD_AUDIO|WRITE_EXTERNAL_STORAGE|READ_EXTERNAL_STORAGE)' permissions.txt; then
+            echo "::error::El APK declara permisos innecesarios."
+            exit 1
+          fi
           "$tools/apksigner" verify --print-certs "$apk" | tee signature.txt
           sha=$(grep -m1 'SHA-256 digest' signature.txt | sed 's/.*: //')
           version=$(grep '^version:' pubspec.yaml | sed 's/version: *//')

@@ -55,28 +55,54 @@ class SecurityInfoScreen extends StatelessWidget {
                         '${KdfParams.defaultIterations} pasadas, '
                         '${KdfParams.defaultParallelism} carriles) y una sal '
                         'aleatoria.',
-                    'La contraseña maestra y la clave nunca se guardan.',
+                    'La contraseña maestra nunca se guarda, y la clave '
+                        'nunca se guarda sin cifrar.',
                     'Los datos solo están en este teléfono: sin cuentas, '
                         'servidores, sincronización ni permiso de Internet.',
                     'Se bloquea al salir de la aplicación y tras '
                         '$autoLock minutos sin actividad.',
                     'Se impiden capturas de pantalla y los datos se '
                         'excluyen de las copias de seguridad de Android.',
+                    'Con la huella activada, la clave de la bóveda se guarda '
+                        'cifrada por una llave del chip seguro del teléfono '
+                        'que no se puede extraer y que exige huella o '
+                        'bloqueo de pantalla en cada uso.',
+                    'La copia de seguridad en PDF solo contiene códigos QR '
+                        'cifrados (AES-256-GCM con una clave Argon2id de tu '
+                        'contraseña maestra y una sal propia). No muestra '
+                        'ningún dato de tus cuentas.',
+                    'La cámara solo se usa para escanear los códigos de '
+                        'una copia y se pide en ese momento.',
                   ]),
                   section('Limitaciones', [
                     'No hay recuperación: sin la contraseña maestra la '
                         'bóveda no se puede abrir.',
                     'Desinstalar la aplicación o borrar sus datos elimina '
-                        'la bóveda. Tampoco se copia a un teléfono nuevo.',
+                        'la bóveda. Exportá la copia en PDF para no perderla.',
                     'Mientras está desbloqueada, los datos descifrados '
                         'están en la memoria del teléfono. Un móvil con '
                         'malware o con root puede leerlos.',
                     'Al copiar, otras aplicaciones o el teclado podrían '
-                        'leer el portapapeles. Se intenta borrar a los 20 '
-                        'segundos, pero si la aplicación está en segundo '
+                        'leer el portapapeles. Se intenta borrar a los 2 '
+                        'minutos, pero si la aplicación está en segundo '
                         'plano Android puede impedirlo hasta que vuelvas.',
                     'Una contraseña maestra débil puede adivinarse si '
                         'alguien obtiene el archivo cifrado.',
+                    'Una copia exportada (el PDF o la hoja impresa) es tan '
+                        'segura como tu contraseña maestra: quien la consiga '
+                        'puede intentar adivinarla sin límite. Nunca la '
+                        'escribas en la misma hoja.',
+                    'La copia no se actualiza sola: volvé a exportarla '
+                        'cuando cambies tus cuentas. Pide la contraseña '
+                        'maestra que tenías al hacerla.',
+                    'Con la huella activada, quien conozca el patrón o PIN '
+                        'del teléfono también puede abrir Cassaforte.',
+                    'Si cambian las huellas o el bloqueo de pantalla, '
+                        'Android anula la llave y hay que usar la contraseña '
+                        'maestra.',
+                    'Lo que estés escribiendo en un formulario se conserva '
+                        'en memoria mientras la bóveda está bloqueada, para '
+                        'que no lo pierdas al volver.',
                   ]),
                 ],
               ),
