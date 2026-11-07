@@ -140,7 +140,7 @@ class _UnlockScreenState extends State<UnlockScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Cassaforte',
+                    'Keyden',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.headlineMedium,
                   ),

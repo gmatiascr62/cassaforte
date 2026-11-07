@@ -65,7 +65,7 @@ Future<void> offerBiometric(BuildContext context) async {
       icon: const Icon(Icons.fingerprint),
       title: const Text('¿Desbloquear con huella?'),
       content: const Text(
-        'Podés abrir Cassaforte con tu huella o con el patrón del teléfono. '
+        'Podés abrir Keyden con tu huella o con el patrón del teléfono. '
         'La contraseña maestra se seguirá pidiendo para las copias de '
         'seguridad y si cambian las huellas del teléfono.',
       ),

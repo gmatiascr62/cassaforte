@@ -100,8 +100,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
         ChunkStatus.otherCopy =>
           'Ese código es de otra copia (no coincide con la copia '
               '${_asm.copyIdHex?.substring(0, 4)}…).',
-        ChunkStatus.invalid =>
-          'No es un código de Cassaforte o no se leyó bien.',
+        ChunkStatus.invalid => 'No es un código de Keyden o no se leyó bien.',
         ChunkStatus.conflict =>
           'Ese código no coincide con uno ya leído: la copia puede estar '
               'alterada.',

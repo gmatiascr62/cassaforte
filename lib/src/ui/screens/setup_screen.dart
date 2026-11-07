@@ -121,7 +121,7 @@ class _SetupScreenState extends State<SetupScreen> {
     Icon(Icons.shield_outlined, size: 56, color: theme.colorScheme.primary),
     const SizedBox(height: 12),
     Text(
-      'Bienvenido a Cassaforte',
+      'Bienvenido a Keyden',
       textAlign: TextAlign.center,
       style: theme.textTheme.headlineSmall,
     ),
@@ -233,7 +233,7 @@ class _SetupScreenState extends State<SetupScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_creating ? 'Crear bóveda' : 'Cassaforte'),
+          title: Text(_creating ? 'Crear bóveda' : 'Keyden'),
           leading: _creating
               ? BackButton(
                   onPressed: busy

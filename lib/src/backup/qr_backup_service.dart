@@ -34,7 +34,7 @@ class PdfBackup {
 
   String get shortId => '${copyId.substring(0, 4)}-${copyId.substring(4, 8)}';
 
-  String get fileName => 'cassaforte-copia-$shortId.pdf';
+  String get fileName => 'keyden-copia-$shortId.pdf';
 }
 
 /// Convierte cada hoja de un PDF en una imagen en escala de grises.
@@ -121,7 +121,7 @@ class QrBackupService {
 
   /// Lee los QR de todas las hojas del PDF y los añade a [assembler].
   /// Lanza [BackupFormatException] si el archivo no es un PDF válido o no
-  /// contiene códigos de Cassaforte.
+  /// contiene códigos de Keyden.
   Future<void> readPdf(
     Uint8List pdf,
     BackupAssembler assembler, {
@@ -169,7 +169,7 @@ class QrBackupService {
       throw BackupFormatException(
         foreign > 0
             ? 'Los códigos del PDF no son de esta copia o están dañados'
-            : 'El PDF no contiene códigos de una copia de Cassaforte',
+            : 'El PDF no contiene códigos de una copia de Keyden',
       );
     }
   }

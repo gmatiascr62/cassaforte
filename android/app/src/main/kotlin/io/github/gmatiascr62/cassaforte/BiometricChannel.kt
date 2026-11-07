@@ -98,7 +98,7 @@ class BiometricChannel(private val activity: Activity) : MethodChannel.MethodCal
         val cipher = Cipher.getInstance(TRANSFORMATION)
         // Lanza KeyPermanentlyInvalidatedException si Android anuló la llave.
         cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
-        authenticate(cipher, "Desbloquear Cassaforte", reply, onFailure = {}) { c ->
+        authenticate(cipher, "Desbloquear Keyden", reply, onFailure = {}) { c ->
             reply.success(c.doFinal(data))
         }
     }

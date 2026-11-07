@@ -227,10 +227,7 @@ void main() {
 
     phone2.scanner.show('https://ejemplo.com'); // ajeno
     await tester.pump();
-    expect(
-      find.textContaining('No es un código de Cassaforte'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('No es un código de Keyden'), findsOneWidget);
     expect(
       find.text('1 de ${codes.length} códigos escaneados'),
       findsOneWidget,
@@ -255,7 +252,7 @@ void main() {
     tester,
   ) async {
     final phone = Phone(tester);
-    phone.scanner.failWith = 'Cassaforte no tiene permiso para usar la cámara.';
+    phone.scanner.failWith = 'Keyden no tiene permiso para usar la cámara.';
     await phone.open();
     await tap(tester, find.byType(Checkbox));
     await tap(tester, find.text('Recuperar mis contraseñas'));
@@ -282,13 +279,13 @@ void main() {
     await tap(tester, find.text('Seleccionar archivo PDF'));
     expect(find.text('No se pudo leer el PDF'), findsOneWidget);
 
-    // PDF válido pero sin códigos de Cassaforte.
+    // PDF válido pero sin códigos de Keyden.
     phone.raster
       ..fail = false
       ..pages = [_blankPage()];
     await tap(tester, find.text('Seleccionar archivo PDF'));
     expect(
-      find.text('El PDF no contiene códigos de una copia de Cassaforte'),
+      find.text('El PDF no contiene códigos de una copia de Keyden'),
       findsOneWidget,
     );
 

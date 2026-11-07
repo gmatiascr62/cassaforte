@@ -161,7 +161,7 @@ class VaultCipher {
         throw const VaultFormatException('Estructura no válida');
       }
       if (doc['format'] != formatName) {
-        throw const VaultFormatException('No es una bóveda de Cassaforte');
+        throw const VaultFormatException('No es una bóveda de Keyden');
       }
       if (doc['version'] != formatVersion) {
         throw const VaultFormatException('Versión de formato no compatible');

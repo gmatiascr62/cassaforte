@@ -1,5 +1,5 @@
 name: cassaforte
-description: "Cassaforte: gestor de contraseñas local y cifrado para Android."
+description: "Keyden: gestor de contraseñas local y cifrado para Android."
 publish_to: 'none'
 
 version: 1.0.0+1

@@ -81,9 +81,9 @@ class CameraQrScanner implements QrScanner {
       await stop();
       throw QrScannerException(
         e.code.contains('AccessDenied') || e.code.contains('AccessRestricted')
-            ? 'Cassaforte no tiene permiso para usar la cámara. Podés '
+            ? 'Keyden no tiene permiso para usar la cámara. Podés '
                   'activarlo en Ajustes del teléfono › Aplicaciones › '
-                  'Cassaforte › Permisos, o elegir el archivo PDF.'
+                  'Keyden › Permisos, o elegir el archivo PDF.'
             : 'No se pudo abrir la cámara.',
       );
     }

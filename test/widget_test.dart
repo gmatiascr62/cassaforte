@@ -52,7 +52,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Configuración con aviso de recuperación.
-    expect(find.text('Bienvenido a Cassaforte'), findsOneWidget);
+    expect(find.text('Bienvenido a Keyden'), findsOneWidget);
     expect(find.textContaining('no habrá forma de recuperar'), findsOneWidget);
 
     // Pantalla inicial: crear o recuperar.

@@ -115,7 +115,7 @@ class RecoveryWarning extends StatelessWidget {
   const RecoveryWarning({super.key});
 
   static const String text =
-      'Cassaforte no guarda tu contraseña maestra ni tiene copias en la nube. '
+      'Keyden no guarda tu contraseña maestra ni tiene copias en la nube. '
       'Si la olvidas, o si se pierden los datos del móvil (al desinstalar la '
       'aplicación, borrar sus datos, restablecer o perder el teléfono), '
       'no habrá forma de recuperar tus contraseñas.';

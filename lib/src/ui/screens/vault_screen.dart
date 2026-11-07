@@ -103,7 +103,7 @@ class _VaultScreenState extends State<VaultScreen> {
           icon: const Icon(Icons.gavel_outlined),
           title: const Text('Términos de uso'),
           content: const Text(
-            'Para seguir usando Cassaforte, leé y aceptá los Términos de uso. '
+            'Para seguir usando Keyden, leé y aceptá los Términos de uso. '
             'La app se ofrece gratis y «tal cual», y vos sos responsable de '
             'la seguridad de tu teléfono, tu contraseña maestra y tus copias.',
           ),
@@ -172,7 +172,7 @@ class _VaultScreenState extends State<VaultScreen> {
     final visible = all.where((e) => e.matches(_query)).toList();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cassaforte'),
+        title: const Text('Keyden'),
         actions: [
           IconButton(
             tooltip: 'Generador de contraseñas',

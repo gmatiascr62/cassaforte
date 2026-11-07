@@ -35,6 +35,11 @@ Future<void> main() async {
   unawaited(_deleteSharedBackups());
 }
 
+/// Copias compartidas que quedan en la caché: las de ahora y las de cuando
+/// la app se llamaba Cassaforte.
+bool _isSharedBackup(String name) =>
+    name.startsWith('keyden-') || name.startsWith('cassaforte-');
+
 /// Al compartir una copia, Android necesita un archivo temporal (el PDF
 /// cifrado) en la caché. Se borra en el siguiente inicio.
 Future<void> _deleteSharedBackups() async {
@@ -42,7 +47,7 @@ Future<void> _deleteSharedBackups() async {
     final dir = Directory('${(await getTemporaryDirectory()).path}/share');
     if (!await dir.exists()) return;
     await for (final f in dir.list()) {
-      if (f is File && f.uri.pathSegments.last.startsWith('cassaforte-')) {
+      if (f is File && _isSharedBackup(f.uri.pathSegments.last)) {
         await f.delete();
       }
     }

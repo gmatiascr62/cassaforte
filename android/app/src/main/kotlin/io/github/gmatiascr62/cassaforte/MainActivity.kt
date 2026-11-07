@@ -113,6 +113,6 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val CHANNEL = "cassaforte/clipboard"
-        private const val CLIP_LABEL = "Cassaforte"
+        private const val CLIP_LABEL = "Keyden"
     }
 }
