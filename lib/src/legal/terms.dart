@@ -14,10 +14,10 @@ class TermsSection {
   final List<String> paragraphs;
 }
 
-/// Términos de uso de Cassaforte.
+/// Términos de uso de Keyden.
 const List<TermsSection> termsOfUse = [
-  TermsSection('1. Qué es Cassaforte', [
-    'Cassaforte es una aplicación gratuita para guardar contraseñas y otros '
+  TermsSection('1. Qué es Keyden', [
+    'Keyden es una aplicación gratuita para guardar contraseñas y otros '
         'datos de acceso de forma cifrada, únicamente en el teléfono del '
         'usuario. No usa cuentas, servidores, sincronización, publicidad ni '
         'analítica, y no tiene permiso de acceso a Internet.',
@@ -32,7 +32,7 @@ const List<TermsSection> termsOfUse = [
         'disponibilidad», sin garantías de ningún tipo, expresas o '
         'implícitas, incluidas las de funcionamiento ininterrumpido, ausencia '
         'de errores, idoneidad para un fin determinado o seguridad absoluta.',
-    'Ningún sistema informático es completamente seguro. Cassaforte usa '
+    'Ningún sistema informático es completamente seguro. Keyden usa '
         'cifrado estándar (AES-256-GCM y Argon2id), pero no puede garantizar '
         'que los datos no sean obtenidos por terceros en todas las '
         'circunstancias.',
@@ -63,7 +63,7 @@ const List<TermsSection> termsOfUse = [
   ]),
   TermsSection('6. Limitación de responsabilidad', [
     'En la máxima medida permitida por la ley aplicable, el desarrollador '
-        'de Cassaforte no será responsable por:',
+        'de Keyden no será responsable por:',
     '• La pérdida, alteración o imposibilidad de acceder a los datos '
         'guardados, incluido el olvido de la contraseña maestra.',
     '• El acceso no autorizado a los datos como consecuencia de la '
@@ -79,7 +79,7 @@ const List<TermsSection> termsOfUse = [
         'irrenunciable.',
   ]),
   TermsSection('7. Privacidad', [
-    'Cassaforte no recoge, no almacena fuera del teléfono y no envía ningún '
+    'Keyden no recoge, no almacena fuera del teléfono y no envía ningún '
         'dato personal ni de uso. El desarrollador no tiene acceso a la '
         'bóveda, a la contraseña maestra ni a las copias de seguridad del '
         'usuario.',

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 /// El diálogo de huella, el patrón del teléfono y el selector de archivos
-/// son pantallas del sistema que ponen Cassaforte en segundo plano. Mientras
+/// son pantallas del sistema que ponen Keyden en segundo plano. Mientras
 /// duran, no se bloquea por pasar a segundo plano (si no, sería imposible
 /// usarlos). Al terminar, si la aplicación no ha vuelto a primer plano en
 /// [returnTimeout], se bloquea. El bloqueo por inactividad sigue activo.

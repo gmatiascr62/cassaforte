@@ -175,7 +175,7 @@ class QrBackupCipher {
     }
     for (var i = 0; i < magic.length; i++) {
       if (payload[i] != magic[i]) {
-        throw const BackupFormatException('No es una copia de Cassaforte');
+        throw const BackupFormatException('No es una copia de Keyden');
       }
     }
     if (payload[4] != version) {

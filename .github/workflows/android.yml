@@ -105,11 +105,11 @@ jobs:
           "$tools/apksigner" verify --print-certs "$apk" | tee signature.txt
           sha=$(grep -m1 'SHA-256 digest' signature.txt | sed 's/.*: //')
           version=$(grep '^version:' pubspec.yaml | sed 's/version: *//')
-          name="cassaforte-${version%%+*}-${GITHUB_SHA::7}.apk"
+          name="keyden-${version%%+*}-${GITHUB_SHA::7}.apk"
           cp "$apk" "$name"
           echo "APK_NAME=$name" >> "$GITHUB_ENV"
           {
-            echo "## APK de Cassaforte"
+            echo "## APK de Keyden"
             echo ""
             echo "- Archivo: \`$name\`"
             echo "- Firma: $SIGNING_KIND"

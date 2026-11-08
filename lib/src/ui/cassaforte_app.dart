@@ -122,7 +122,7 @@ class _CassaforteAppState extends State<CassaforteApp> {
       qrScanner: widget._qrScanner ?? CameraQrScanner.new,
       child: MaterialApp(
         navigatorKey: _navigatorKey,
-        title: 'Cassaforte',
+        title: 'Keyden',
         debugShowCheckedModeBanner: false,
         theme: theme(Brightness.light),
         darkTheme: theme(Brightness.dark),

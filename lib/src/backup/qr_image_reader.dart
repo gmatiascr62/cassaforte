@@ -79,7 +79,7 @@ class _Found {
 class QrImageReader {
   static const int _minRegion = 60;
 
-  /// Busca primero en las celdas conocidas del PDF de Cassaforte y, si no
+  /// Busca primero en las celdas conocidas del PDF de Keyden y, si no
   /// encuentra nada, en toda la imagen, repitiendo en las zonas que quedan
   /// alrededor de cada código encontrado (como el lector múltiple de ZXing).
   static List<String> readAll(GrayImage image, {bool usePageLayout = true}) {

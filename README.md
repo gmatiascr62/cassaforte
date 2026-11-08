@@ -1,8 +1,10 @@
-# Cassaforte
+# Keyden
+
+> Antes se llamaba **Cassaforte**. Cambió solo el nombre: el identificador de la app (`io.github.gmatiascr62.cassaforte`), el archivo de la bóveda (`vault.cassaforte`) y el formato de las copias siguen igual, así que la versión nueva se instala encima de la anterior sin perder nada.
 
 Gestor de contraseñas para Android, personal y **totalmente local**: sin cuentas, servidores, sincronización, publicidad ni analítica. Hecho con Flutter/Dart.
 
-> ⚠️ **No hay recuperación posible.** Si olvidas la contraseña maestra, o si se pierden los datos del móvil (desinstalar la app, borrar sus datos, restablecer o perder el teléfono), la bóveda no se puede recuperar. Cassaforte no hace copias automáticas en la nube: **exporta la copia de seguridad en PDF** desde *Ajustes*, imprímela o guárdala fuera del teléfono.
+> ⚠️ **No hay recuperación posible.** Si olvidas la contraseña maestra, o si se pierden los datos del móvil (desinstalar la app, borrar sus datos, restablecer o perder el teléfono), la bóveda no se puede recuperar. Keyden no hace copias automáticas en la nube: **exporta la copia de seguridad en PDF** desde *Ajustes*, imprímela o guárdala fuera del teléfono.
 
 ## Funciones
 
@@ -16,7 +18,7 @@ Gestor de contraseñas para Android, personal y **totalmente local**: sin cuenta
 - Añadir, consultar, editar, eliminar (con confirmación) y buscar (por nombre, usuario, tipo, datos visibles y campos adicionales; nunca en la contraseña, el número de tarjeta, el código de seguridad ni los campos ocultos).
 - Contraseñas ocultas por defecto, con botón para mostrarlas.
 - Generador de contraseñas con `Random.secure()` (CSPRNG del sistema): longitud de 8 a 64; minúsculas, mayúsculas, números y símbolos; opción para evitar caracteres ambiguos. Garantiza al menos un carácter de cada tipo elegido.
-- Copiar al portapapeles con borrado automático a los **2 minutos** (tiempo para cambiar de app y pegar con calma), **solo si** el portapapeles sigue conteniendo lo que copió Cassaforte.
+- Copiar al portapapeles con borrado automático a los **2 minutos** (tiempo para cambiar de app y pegar con calma), **solo si** el portapapeles sigue conteniendo lo que copió Keyden.
 - Bloqueo al pasar a segundo plano y tras 2 minutos sin actividad.
 - **Desbloqueo con huella o con el patrón/PIN del teléfono** (Android 11+), opcional. La contraseña maestra se sigue pidiendo para las copias y si Android invalida la llave.
 - **Copias de seguridad en PDF con códigos QR cifrados** (ver abajo): exportar desde *Ajustes* (guardar, imprimir o compartir) y recuperar en un teléfono nuevo con «Recuperar mis contraseñas», escaneando los QR con la cámara o eligiendo el PDF. Dentro de la bóveda también se puede importar una copia (fusionar o reemplazar). Los archivos `.cassaforte` de versiones anteriores se siguen pudiendo restaurar e importar.
@@ -60,7 +62,7 @@ Formato del archivo (`files/vault.cassaforte`, en el directorio privado de la ap
 ### Limitaciones reales (sin promesas absolutas)
 
 - **Memoria:** mientras la bóveda está abierta, los datos descifrados están en la memoria del proceso. Dart no permite borrar de forma fiable las cadenas (`String`) ni controlar el recolector de basura, así que pueden quedar copias de contraseñas en memoria hasta que se reutilice. Malware con privilegios, un móvil rooteado o un volcado de memoria pueden leerlas.
-- **Portapapeles:** mientras una contraseña, un número de tarjeta u otro dato está copiado (hasta 2 minutos), el teclado, servicios de accesibilidad u otras apps con acceso pueden leerla. En Android 10+ una app en segundo plano no puede consultar el portapapeles: si a los 2 minutos Cassaforte no está en primer plano, el borrado se hace al volver a abrirla. Si el proceso termina antes, no se borra (Android 13+ lo borra solo al cabo de un tiempo). Algunos teclados guardan historial de portapapeles propio.
+- **Portapapeles:** mientras una contraseña, un número de tarjeta u otro dato está copiado (hasta 2 minutos), el teclado, servicios de accesibilidad u otras apps con acceso pueden leerla. En Android 10+ una app en segundo plano no puede consultar el portapapeles: si a los 2 minutos Keyden no está en primer plano, el borrado se hace al volver a abrirla. Si el proceso termina antes, no se borra (Android 13+ lo borra solo al cabo de un tiempo). Algunos teclados guardan historial de portapapeles propio.
 - **Contraseña maestra débil:** quien obtenga el archivo cifrado puede intentar adivinarla sin límite de intentos; Argon2id solo lo encarece. Usa una frase larga.
 - **Metadatos:** el tamaño del archivo revela aproximadamente cuánto contenido hay.
 - **Dispositivo:** la seguridad depende del sistema Android (bloqueo de pantalla, cifrado del almacenamiento, ausencia de root/malware). No hay protección contra un atacante con acceso al móvil desbloqueado mientras la bóveda está abierta.
@@ -69,8 +71,8 @@ Formato del archivo (`files/vault.cassaforte`, en el directorio privado de la ap
 - **Copias exportadas:** su seguridad depende por completo de la contraseña maestra. Quien obtenga el PDF o una foto de la hoja impresa puede intentar adivinarla sin límite de intentos. Nunca escribas la contraseña maestra en la hoja.
 - **La copia es una foto de un momento:** no se actualiza sola; hay que volver a exportarla tras cambios. Si se cambia la contraseña maestra, las copias anteriores siguen pidiendo la contraseña con la que se hicieron.
 - **Compartir el PDF** deja una copia (cifrada) en la caché de la app hasta el siguiente inicio, y la app a la que lo compartas (correo, nube…) guarda su propia copia.
-- El paquete `printing` (imprimir, compartir y leer PDF) incluye código para descargar imágenes de Internet que Cassaforte no usa; sin permiso `INTERNET` no podría conectarse aunque se usara.
-- **Huella:** quien conozca el patrón/PIN del teléfono (o use tu dedo) puede abrir Cassaforte. En un teléfono con root o malware que controle el sistema, el Keystore puede usarse mientras el teléfono está desbloqueado. Si cambian las huellas o el bloqueo de pantalla, Android destruye la llave y hay que usar la contraseña maestra (la app lo detecta y ofrece reactivarla). Requiere Android 11 o superior.
+- El paquete `printing` (imprimir, compartir y leer PDF) incluye código para descargar imágenes de Internet que Keyden no usa; sin permiso `INTERNET` no podría conectarse aunque se usara.
+- **Huella:** quien conozca el patrón/PIN del teléfono (o use tu dedo) puede abrir Keyden. En un teléfono con root o malware que controle el sistema, el Keystore puede usarse mientras el teléfono está desbloqueado. Si cambian las huellas o el bloqueo de pantalla, Android destruye la llave y hay que usar la contraseña maestra (la app lo detecta y ofrece reactivarla). Requiere Android 11 o superior.
 - **Formulario a medio completar:** lo que se estaba escribiendo se conserva en memoria mientras la bóveda está bloqueada (oculto bajo la pantalla de bloqueo) para no perderlo. Si Android cierra la app en segundo plano, se pierde.
 - Mientras está abierto el diálogo de huella o el selector de archivos, el bloqueo por pasar a segundo plano se aplaza (el bloqueo por inactividad sigue funcionando).
 - Argon2id se ejecuta en Dart puro: en móviles lentos el desbloqueo puede tardar varios segundos.
@@ -142,7 +144,7 @@ La lectura de QR (desde el PDF y desde la cámara) se hace en Dart con `zxing2`,
 - Con el código girado cerca de 45°, el buscador de patrones de alineación (que mide tramos horizontales) no los encuentra.
 - Estima mal el tamaño del código en módulos cuando un lado se ve más corto que el otro.
 
-Cassaforte prueba primero lo mismo que `zxing2` y, si falla, prueba varias hipótesis:
+Keyden prueba primero lo mismo que `zxing2` y, si falla, prueba varias hipótesis:
 
 - triángulos elegidos por deformación proporcional al tamaño;
 - varios tamaños posibles del código;
@@ -153,7 +155,7 @@ Cada hipótesis se valida decodificando: la corrección de errores Reed-Solomon 
 Mediciones con fotogramas simulados (de frente, girados, en perspectiva, con luz despareja, desenfoque y ruido):
 
 - `zxing2` solo: 277 de 480 (58 %), y ninguno con el código girado y en perspectiva a la vez.
-- Con el detector de Cassaforte: 470 de 480 (98 %), sin ningún texto erróneo.
+- Con el detector de Keyden: 470 de 480 (98 %), sin ningún texto erróneo.
 
 Con una foto real de una hoja impresa, `zxing2` solo no leía el código a ninguna resolución. Con el detector nuevo se lee a 1080, 720 y 480 px de ancho; a 1500 px no lo leyó (ZXing-C++, que se usó como referencia, tampoco). Esa foto no está en el repositorio porque contiene una copia (cifrada) real. El detector usa clases internas de `zxing2`, por eso la versión queda fijada (`zxing2: 0.2.4`).
 
@@ -162,7 +164,7 @@ Con una foto real de una hoja impresa, `zxing2` solo no leía el código a ningu
 1. Crear unas 20–100 cuentas de prueba (no reales) → *Ajustes → Exportar copia de seguridad* → Guardar PDF.
 2. Abrir el PDF en otro dispositivo y comprobar que no se lee ningún dato de las cuentas.
 3. Imprimirlo en A4 al 100 % (sin «ajustar a página» si es posible).
-4. Desinstalar Cassaforte (o usar otro teléfono), instalarla, *Recuperar mis contraseñas*:
+4. Desinstalar Keyden (o usar otro teléfono), instalarla, *Recuperar mis contraseñas*:
    - **Escanear códigos QR** desde la hoja impresa y también desde la pantalla de una computadora, en desorden y repitiendo alguno.
    - **Seleccionar archivo PDF** con el PDF guardado.
 5. Escribir mal la contraseña una vez y después la correcta, y comprobar que las cuentas son idénticas.

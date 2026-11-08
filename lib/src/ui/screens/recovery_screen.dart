@@ -68,8 +68,8 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
         await _legacyFile(bytes);
       } else {
         setState(
-          () => _error =
-              'El archivo no es un PDF ni una copia de Cassaforte válida.',
+          () =>
+              _error = 'El archivo no es un PDF ni una copia de Keyden válida.',
         );
       }
       return;
@@ -306,7 +306,7 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
         if (mounted) {
           setState(
             () => _error =
-                'El archivo no es un PDF ni una copia de Cassaforte válida.',
+                'El archivo no es un PDF ni una copia de Keyden válida.',
           );
         }
         return;
@@ -347,7 +347,7 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
                 children: [
                   Text(
                     'Usá la copia de seguridad en PDF que exportaste con '
-                    'Cassaforte (o la hoja impresa) y la contraseña maestra '
+                    'Keyden (o la hoja impresa) y la contraseña maestra '
                     'que tenías al hacerla.',
                     style: theme.textTheme.bodyLarge,
                   ),

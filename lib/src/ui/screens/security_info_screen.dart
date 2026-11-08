@@ -96,7 +96,7 @@ class SecurityInfoScreen extends StatelessWidget {
                         'cuando cambies tus cuentas. Pide la contraseña '
                         'maestra que tenías al hacerla.',
                     'Con la huella activada, quien conozca el patrón o PIN '
-                        'del teléfono también puede abrir Cassaforte.',
+                        'del teléfono también puede abrir Keyden.',
                     'Si cambian las huellas o el bloqueo de pantalla, '
                         'Android anula la llave y hay que usar la contraseña '
                         'maestra.',

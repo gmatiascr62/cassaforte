@@ -27,7 +27,7 @@ class BackupFilesChannel(private val activity: Activity) : MethodChannel.MethodC
                 val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
                     type = call.argument<String>("mime") ?: "application/octet-stream"
-                    putExtra(Intent.EXTRA_TITLE, call.argument<String>("name") ?: "cassaforte.cassaforte")
+                    putExtra(Intent.EXTRA_TITLE, call.argument<String>("name") ?: "keyden-copia.pdf")
                 }
                 pendingBytes = call.argument<ByteArray>("bytes")
                 pending = reply

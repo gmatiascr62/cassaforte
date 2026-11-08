@@ -90,14 +90,14 @@ class QrChunk {
   }
 
   /// Interpreta el texto de un QR. Lanza [FormatException] si no es un
-  /// fragmento válido de Cassaforte o si está dañado.
+  /// fragmento válido de Keyden o si está dañado.
   static QrChunk parse(String text) {
     final bytes = Base45.decode(text.trim());
     if (bytes.length < headerLength + checkLength + 1) {
       throw const FormatException('Fragmento demasiado corto');
     }
     if (bytes[0] != magic[0] || bytes[1] != magic[1]) {
-      throw const FormatException('No es un código de Cassaforte');
+      throw const FormatException('No es un código de Keyden');
     }
     if (bytes[2] != version) {
       throw const FormatException('Versión de código no compatible');
@@ -208,7 +208,7 @@ enum ChunkStatus {
   /// Pertenece a otra copia distinta de la que se está leyendo.
   otherCopy,
 
-  /// No es un código de Cassaforte o está dañado.
+  /// No es un código de Keyden o está dañado.
   invalid,
 
   /// Misma posición que uno ya leído pero con otro contenido: alterado.
